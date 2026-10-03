@@ -11,7 +11,8 @@ app = Flask(__name__)
 # إعداد Gemini API
 API_KEY = os.environ.get("GEMINI_API_KEY")
 genai.configure(api_key=API_KEY)
-model = genai.GenerativeModel('gemini-pro')
+model = genai.GenerativeModel('gemini-1.5-flash')
+
 # البرومبت الثابت (يمكنك تعديله كما تشاء)
 FIXED_PROMPT = """
 أنت مساعد ذكي متخصص في تحليل المنتجات.
