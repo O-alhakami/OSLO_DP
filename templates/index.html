@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OSLO_DP - معالج وصف المنتجات</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f7f6; margin: 0; padding: 20px; color: #333; }
+        .container { max-width: 800px; margin: 0 auto; background: #fff; padding: 30px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        h1 { text-align: center; color: #2c3e50; }
+        textarea { width: 100%; padding: 15px; margin-bottom: 20px; border: 1px solid #ccc; border-radius: 5px; font-size: 16px; box-sizing: border-box; resize: vertical; }
+        button { background-color: #3498db; color: white; border: none; padding: 15px 25px; font-size: 16px; border-radius: 5px; cursor: pointer; width: 100%; transition: background 0.3s; }
+        button:hover { background-color: #2980b9; }
+        .result-box { margin-top: 30px; display: none; }
+        .copy-btn { background-color: #2ecc71; margin-top: 10px; width: auto; padding: 10px 20px; }
+        .copy-btn:hover { background-color: #27ae60; }
+        #loading { text-align: center; display: none; margin-top: 15px; font-weight: bold; color: #e67e22; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>OSLO_DP</h1>
+    <p style="text-align: center;">أدخل وصف المنتج العشوائي هنا وسيقوم الذكاء الاصطناعي بترتيبه وتنسيقه</p>
+    
+    <textarea id="userInput" rows="8" placeholder="الصق وصف المنتج وتفاصيله هنا..."></textarea>
+    <button onclick="processData()">معالجة النص</button>
+    <div id="loading">جاري المعالجة... الرجاء الانتظار.</div>
+
+    <div class="result-box" id="resultBox">
+        <h3>النتيجة:</h3>
+        <textarea id="aiResult" rows="10"></textarea>
+        <button class="copy-btn" onclick="copyResult()">نسخ النتيجة</button>
+    </div>
+</div>
+
+<script>
+    async function processData() {
+        const text = document.getElementById('userInput').value;
+        const loading = document.getElementById('loading');
+        const resultBox = document.getElementById('resultBox');
+        const aiResult = document.getElementById('aiResult');
+
+        if (!text) {
+            alert('الرجاء إدخال نص أولاً');
+            return;
+        }
+
+        loading.style.display = 'block';
+        resultBox.style.display = 'none';
+
+        try {
+            const response = await fetch('/process', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text: text })
+            });
+            
+            const data = await response.json();
+            
+            if (response.ok) {
+                aiResult.value = data.result;
+                resultBox.style.display = 'block';
+            } else {
+                alert('حدث خطأ: ' + data.error);
+            }
+        } catch (error) {
+            alert('حدث خطأ في الاتصال بالخادم');
+        } finally {
+            loading.style.display = 'none';
+        }
+    }
+
+    function copyResult() {
+        const resultText = document.getElementById('aiResult');
+        resultText.select();
+        document.execCommand('copy');
+        alert('تم نسخ النتيجة بنجاح!');
+    }
+</script>
+
+</body>
+</html>
