@@ -33,16 +33,8 @@ def process_text():
     full_prompt = f"{selected_prompt}\n\n--- النص المدخل ---\n{user_text}"
     
     try:
-        available_model = None
-        for m in genai.list_models():
-            if 'generateContent' in m.supported_generation_methods:
-                available_model = m.name
-                break 
-                
-        if not available_model:
-            return jsonify({"error": "لا توجد نماذج توليد نصوص متاحة حالياً."}), 500
-
-        model = genai.GenerativeModel(available_model)
+        # تحديد الإصدار المطلوب مباشرة وتخطي البحث التلقائي
+        model = genai.GenerativeModel('gemini-3.8-flash')
         response = model.generate_content(full_prompt)
         
         return jsonify({"result": response.text})
