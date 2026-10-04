@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>إدارة المستخدمين | OSLO DP</title>
+    <style>
+        body { font-family: 'Cairo', sans-serif; background: #0f172a; color: white; padding: 40px; }
+        table { width: 100%; background: #1e293b; border-collapse: collapse; margin-top: 20px; }
+        th, td { padding: 15px; border: 1px solid #334155; text-align: center; }
+        .btn { padding: 8px 15px; border: none; border-radius: 5px; cursor: pointer; color: white; margin: 2px;}
+        .btn-green { background: #10b981; } .btn-red { background: #ef4444; } .btn-blue { background: #3b82f6; }
+    </style>
+</head>
+<body>
+    <h2>لوحة إدارة الحسابات</h2>
+    <a href="{{ url_for('index') }}" style="color:#818cf8;">العودة للرئيسية</a>
+    <table>
+        <tr>
+            <th>الرقم</th><th>المستخدم</th><th>الحالة</th><th>صلاحية مسؤول</th><th>إجراءات</th>
+        </tr>
+        {% for user in users %}
+        <tr>
+            <td>{{ user.id }}</td>
+            <td>{{ user.username }}</td>
+            <td>{{ 'مفعل' if user.is_active else 'معلق' }}</td>
+            <td>{{ 'نعم' if user.is_admin else 'لا' }}</td>
+            <td>
+                <form method="POST" style="display:inline;">
+                    <input type="hidden" name="user_id" value="{{ user.id }}">
+                    {% if not user.is_active %}
+                        <button type="submit" name="action" value="activate" class="btn btn-green">تفعيل</button>
+                    {% else %}
+                        <button type="submit" name="action" value="deactivate" class="btn btn-red">إيقاف</button>
+                    {% endif %}
+                    {% if not user.is_admin %}
+                        <button type="submit" name="action" value="make_admin" class="btn btn-blue">ترقية لمسؤول</button>
+                    {% endif %}
+                </form>
+            </td>
+        </tr>
+        {% endfor %}
+    </table>
+</body>
+</html>

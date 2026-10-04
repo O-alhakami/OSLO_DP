@@ -1,46 +1,155 @@
 import os
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, redirect, url_for, flash
+from flask_sqlalchemy import SQLAlchemy
+from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
+from werkzeug.security import generate_password_hash, check_password_hash
 import google.generativeai as genai
 from dotenv import load_dotenv
 
 load_dotenv()
 app = Flask(__name__)
+app.secret_key = os.environ.get("SECRET_KEY", "oslo_super_secret_key_123")
 
-API_KEY = os.environ.get("GEMINI_API_KEY")
-genai.configure(api_key=API_KEY)
+# إعداد قاعدة البيانات (يدعم PostgreSQL على Render و SQLite محلياً)
+db_url = os.environ.get("DATABASE_URL", "sqlite:///users.db")
+if db_url.startswith("postgres://"):
+    db_url = db_url.replace("postgres://", "postgresql://", 1)
+app.config['SQLALCHEMY_DATABASE_URI'] = db_url
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-# قوالب أوامر متعددة لزيادة فائدة الأداة
+db = SQLAlchemy(app)
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = 'login'
+
+# إعداد Gemini API
+genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
+
+# نموذج المستخدم في قاعدة البيانات
+class User(UserMixin, db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(100), unique=True, nullable=False)
+    password_hash = db.Column(db.String(200), nullable=False)
+    is_active = db.Column(db.Boolean, default=False) # الحساب يحتاج تفعيل
+    is_admin = db.Column(db.Boolean, default=False)
+
+@login_manager.user_loader
+def load_user(user_id):
+    return User.query.get(int(user_id))
+
+# إنشاء الجداول عند التشغيل الأول
+with app.app_context():
+    db.create_all()
+
+# --- مسارات المصادقة ---
+
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
+        
+        user_exists = User.query.filter_by(username=username).first()
+        if user_exists:
+            flash('اسم المستخدم موجود مسبقاً', 'error')
+            return redirect(url_for('register'))
+            
+        hashed_password = generate_password_hash(password)
+        is_first_user = User.query.count() == 0
+        
+        # أول مستخدم يسجل يصبح مسؤولاً ومفعلاً تلقائياً
+        new_user = User(
+            username=username, 
+            password_hash=hashed_password,
+            is_active=is_first_user, 
+            is_admin=is_first_user
+        )
+        db.session.add(new_user)
+        db.session.commit()
+        
+        flash('تم طلب إنشاء الحساب. يرجى انتظار تفعيل المسؤول.', 'success')
+        return redirect(url_for('login'))
+    return render_template('register.html')
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
+        user = User.query.filter_by(username=username).first()
+        
+        if user and check_password_hash(user.password_hash, password):
+            if not user.is_active:
+                flash('حسابك قيد المراجعة ولم يتم تفعيله بعد.', 'error')
+                return redirect(url_for('login'))
+            login_user(user)
+            return redirect(url_for('index'))
+            
+        flash('اسم المستخدم أو كلمة المرور غير صحيحة', 'error')
+    return render_template('login.html')
+
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    return redirect(url_for('login'))
+
+# --- لوحة الإدارة ---
+
+@app.route('/admin', methods=['GET', 'POST'])
+@login_required
+def admin():
+    if not current_user.is_admin:
+        return "غير مصرح لك بالدخول", 403
+        
+    if request.method == 'POST':
+        user_id = request.form.get('user_id')
+        action = request.form.get('action')
+        user = User.query.get(user_id)
+        
+        if user:
+            if action == 'activate':
+                user.is_active = True
+            elif action == 'deactivate':
+                user.is_active = False
+            elif action == 'make_admin':
+                user.is_admin = True
+            db.session.commit()
+            
+    users = User.query.all()
+    return render_template('admin.html', users=users)
+
+# --- مسارات الأداة الأساسية ---
+
 PROMPTS = {
-    "product": "أنت خبير تجارة إلكترونية. استخرج اسم المنتج، مميزاته الأساسية،  ونسقها في نقاط واضحة وجذابة  مع الشروط التالية يجب ان يكون النص متوسط الحجم ويجب ان يكون  70بالمئة منه عبارة عن كلمات مفتاحية مناسبة للسيو انستجرام و تيك توك مضمنة في سياق جذاب ومناسب 30-بالمئة الباقية اجعلها وصف فاخر وفخم للمنتج ومحتوياته استناداً على المعلومات المتوفرة في النص مع اضافة قليل من الهاشتاقات المناسبة لنوع المنتج والتي تساعدة على تصدر نتائج السيو في انستجرام وتيك توك.",
-    "seo": "أنت خبير تحسين محركات البحث. استخرج أفضل 10 كلمات مفتاحية (SEO Keywords) من النص التالي، واكتب وصفاً قصيراً (Meta Description) للمنتج.",
-    "marketing": "أنت صانع محتوى إبداعي. اكتب منشوراً تسويقياً جذاباً لمنصات التواصل الاجتماعي بناءً على هذا النص، مع استخدام عبارات تحفيزية (Call to Action) ورموز تعبيرية مناسبة."
+    "product": "أنت خبير تجارة إلكترونية. استخرج اسم المنتج، مميزاته، وسعره من النص، ونسقها في نقاط.",
+    "seo": "أنت خبير سيو. استخرج أفضل 10 كلمات مفتاحية واكتب Meta Description.",
+    "marketing": "اكتب منشوراً تسويقياً جذاباً مع عبارات تحفيزية."
 }
 
 @app.route('/')
+@login_required
 def index():
     return render_template('index.html')
 
 @app.route('/process', methods=['POST'])
+@login_required
 def process_text():
     data = request.json
     user_text = data.get('text', '')
     mode = data.get('mode', 'product')
     
     if not user_text:
-        return jsonify({"error": "لم يتم إدخال أي نص للمعالجة."}), 400
+        return jsonify({"error": "لم يتم إدخال أي نص"}), 400
         
-    selected_prompt = PROMPTS.get(mode, PROMPTS["product"])
-    full_prompt = f"{selected_prompt}\n\n--- النص المدخل ---\n{user_text}"
+    full_prompt = f"{PROMPTS.get(mode, PROMPTS['product'])}\n\n--- النص ---\n{user_text}"
     
     try:
-        # تحديد الإصدار المطلوب مباشرة وتخطي البحث التلقائي
         model = genai.GenerativeModel('gemini-3.8-flash')
         response = model.generate_content(full_prompt)
-        
         return jsonify({"result": response.text})
-        
     except Exception as e:
-        return jsonify({"error": f"حدث خطأ أثناء الاتصال بالخادم: {str(e)}"}), 500
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
     app.run(debug=True)
