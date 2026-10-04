@@ -2,43 +2,315 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>إدارة المستخدمين | OSLO DP</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OSLO DP | المنصة الذكية لمعالجة النصوص</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;800&display=swap" rel="stylesheet">
     <style>
-        body { font-family: 'Cairo', sans-serif; background: #0f172a; color: white; padding: 40px; }
-        table { width: 100%; background: #1e293b; border-collapse: collapse; margin-top: 20px; }
-        th, td { padding: 15px; border: 1px solid #334155; text-align: center; }
-        .btn { padding: 8px 15px; border: none; border-radius: 5px; cursor: pointer; color: white; margin: 2px;}
-        .btn-green { background: #10b981; } .btn-red { background: #ef4444; } .btn-blue { background: #3b82f6; }
+        :root {
+            --primary: #4F46E5;
+            --secondary: #ec4899;
+            --bg-color: #0f172a;
+            --surface: #1e293b;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+        }
+
+        body {
+            font-family: 'Cairo', sans-serif;
+            background: linear-gradient(135deg, var(--bg-color), #172033);
+            color: var(--text-main);
+            margin: 0;
+            padding: 40px 20px;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+        }
+
+        .app-container {
+            width: 100%;
+            max-width: 900px;
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-weight: 800;
+            font-size: 2.5rem;
+            margin: 0 0 10px 0;
+            background: linear-gradient(to right, #818cf8, #c084fc);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .header p {
+            color: var(--text-muted);
+            font-size: 1.1rem;
+            margin: 0;
+        }
+
+        /* تنسيق أزرار التنقل العلوية */
+        .nav-links {
+            margin-top: 15px;
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+        }
+
+        .nav-links a {
+            text-decoration: none;
+            font-weight: 600;
+            padding: 8px 16px;
+            border-radius: 8px;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            transition: all 0.3s;
+            font-size: 0.9rem;
+        }
+
+        .nav-links a.admin-link { color: #818cf8; }
+        .nav-links a.logout-link { color: #ec4899; }
+        
+        .nav-links a:hover {
+            background: rgba(255,255,255,0.1);
+            transform: translateY(-2px);
+        }
+
+        .options-group {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .radio-label {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            padding: 10px 20px;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 600;
+        }
+
+        .radio-label:hover { background: rgba(255,255,255,0.1); }
+        input[type="radio"]:checked + .radio-label {
+            background: var(--primary);
+            border-color: var(--primary);
+            box-shadow: 0 0 15px rgba(79, 70, 229, 0.4);
+        }
+        input[type="radio"] { display: none; }
+
+        textarea {
+            width: 100%;
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid rgba(255,255,255,0.2);
+            color: var(--text-main);
+            padding: 20px;
+            border-radius: 15px;
+            font-family: inherit;
+            font-size: 1rem;
+            resize: vertical;
+            min-height: 150px;
+            box-sizing: border-box;
+            transition: border-color 0.3s;
+        }
+
+        textarea:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        .char-count {
+            text-align: left;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-top: 5px;
+            margin-bottom: 20px;
+        }
+
+        .btn-main {
+            width: 100%;
+            background: linear-gradient(to right, var(--primary), var(--secondary));
+            border: none;
+            padding: 16px;
+            color: white;
+            font-size: 1.2rem;
+            font-weight: 700;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            font-family: inherit;
+        }
+
+        .btn-main:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(236, 72, 153, 0.3);
+        }
+
+        .btn-main:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .result-section {
+            margin-top: 30px;
+            display: none;
+            animation: fadeIn 0.5s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .actions {
+            display: flex;
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .btn-action {
+            flex: 1;
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            color: white;
+            padding: 12px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-family: inherit;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+
+        .btn-action:hover { background: rgba(255,255,255,0.2); }
+
+        #loadingIndicator {
+            text-align: center;
+            display: none;
+            margin-top: 20px;
+            color: #818cf8;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
-    <h2>لوحة إدارة الحسابات</h2>
-    <a href="{{ url_for('index') }}" style="color:#818cf8;">العودة للرئيسية</a>
-    <table>
-        <tr>
-            <th>الرقم</th><th>المستخدم</th><th>الحالة</th><th>صلاحية مسؤول</th><th>إجراءات</th>
-        </tr>
-        {% for user in users %}
-        <tr>
-            <td>{{ user.id }}</td>
-            <td>{{ user.username }}</td>
-            <td>{{ 'مفعل' if user.is_active else 'معلق' }}</td>
-            <td>{{ 'نعم' if user.is_admin else 'لا' }}</td>
-            <td>
-                <form method="POST" style="display:inline;">
-                    <input type="hidden" name="user_id" value="{{ user.id }}">
-                    {% if not user.is_active %}
-                        <button type="submit" name="action" value="activate" class="btn btn-green">تفعيل</button>
-                    {% else %}
-                        <button type="submit" name="action" value="deactivate" class="btn btn-red">إيقاف</button>
-                    {% endif %}
-                    {% if not user.is_admin %}
-                        <button type="submit" name="action" value="make_admin" class="btn btn-blue">ترقية لمسؤول</button>
-                    {% endif %}
-                </form>
-            </td>
-        </tr>
-        {% endfor %}
-    </table>
+
+<div class="app-container">
+    <div class="header">
+        <h1>OSLO DP</h1>
+        <p>المنصة الذكية لمعالجة وتحليل البيانات</p>
+        
+        <!-- روابط التنقل المضافة هنا -->
+        <div class="nav-links">
+            <a href="/admin" class="admin-link">⚙️ لوحة الإدارة</a>
+            <a href="/logout" class="logout-link">🚪 تسجيل خروج</a>
+        </div>
+    </div>
+
+    <div class="options-group">
+        <input type="radio" id="mode_product" name="processing_mode" value="product" checked>
+        <label for="mode_product" class="radio-label">🛒 تفاصيل المنتج</label>
+
+        <input type="radio" id="mode_seo" name="processing_mode" value="seo">
+        <label for="mode_seo" class="radio-label">🔍 كلمات مفتاحية (SEO)</label>
+
+        <input type="radio" id="mode_marketing" name="processing_mode" value="marketing">
+        <label for="mode_marketing" class="radio-label">📱 منشور تسويقي</label>
+    </div>
+
+    <textarea id="userInput" placeholder="الصق النص العشوائي، تفاصيل المنتج، أو البيانات هنا..." onkeyup="updateCount()"></textarea>
+    <div class="char-count">عدد الأحرف: <span id="charCount">0</span></div>
+
+    <button id="processBtn" class="btn-main" onclick="processData()">بدء المعالجة بـ AI 🚀</button>
+    <div id="loadingIndicator">جاري تحليل البيانات واستخراج النتائج... يرجى الانتظار</div>
+
+    <div class="result-section" id="resultSection">
+        <textarea id="aiResult" rows="12" readonly></textarea>
+        <div class="actions">
+            <button class="btn-action" onclick="copyResult()">📋 نسخ النص</button>
+            <button class="btn-action" onclick="downloadResult()">💾 تحميل كملف</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    function updateCount() {
+        document.getElementById('charCount').innerText = document.getElementById('userInput').value.length;
+    }
+
+    async function processData() {
+        const text = document.getElementById('userInput').value;
+        const mode = document.querySelector('input[name="processing_mode"]:checked').value;
+        const processBtn = document.getElementById('processBtn');
+        const loading = document.getElementById('loadingIndicator');
+        const resultSection = document.getElementById('resultSection');
+        const aiResult = document.getElementById('aiResult');
+
+        if (!text.trim()) {
+            alert('يرجى إدخال البيانات أولاً في المربع النصي.');
+            return;
+        }
+
+        processBtn.disabled = true;
+        loading.style.display = 'block';
+        resultSection.style.display = 'none';
+        aiResult.value = '';
+
+        try {
+            const response = await fetch('/process', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text: text, mode: mode })
+            });
+            
+            const data = await response.json();
+            
+            if (response.ok) {
+                aiResult.value = data.result;
+                resultSection.style.display = 'block';
+            } else {
+                alert('حدث خطأ: ' + (data.error || 'غير معروف'));
+            }
+        } catch (error) {
+            alert('فشل الاتصال بالخادم. تأكد من أن الموقع يعمل بشكل صحيح.');
+        } finally {
+            processBtn.disabled = false;
+            loading.style.display = 'none';
+        }
+    }
+
+    function copyResult() {
+        const aiResult = document.getElementById('aiResult');
+        aiResult.select();
+        document.execCommand('copy');
+        alert('تم نسخ النتيجة إلى الحافظة!');
+    }
+
+    function downloadResult() {
+        const text = document.getElementById('aiResult').value;
+        const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'OSLO_DP_Result.txt';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+</script>
+
 </body>
 </html>
