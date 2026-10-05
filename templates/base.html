@@ -34,14 +34,12 @@
 <body>
     <div class="sidebar">
         <h2>OSLO DP</h2>
-        <a href="{{ url_for('index') }}">🏠 لوحة التحكم (الرئيسية)</a>
+        <a href="{{ url_for('index') }}">🏠 المعالجة بالذكاء الاصطناعي</a>
+        <a href="{{ url_for('archive') }}">📦 أرشفة منتجات</a>
+        <a href="{{ url_for('search_archive') }}">🔍 البحث في الأرشيف</a>
         {% if current_user.is_admin %}
             <a href="{{ url_for('admin') }}">⚙️ إدارة المستخدمين</a>
         {% endif %}
-        <!-- تبويبات مستقبلية جاهزة للاستخدام -->
-        <a href="#" class="disabled-tab">📑 تبويب مستقبلي 1</a>
-        <a href="#" class="disabled-tab">📑 تبويب مستقبلي 2</a>
-        
         <a href="{{ url_for('logout') }}" class="logout">🚪 تسجيل الخروج</a>
     </div>
 

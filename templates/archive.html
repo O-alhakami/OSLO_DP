@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+    .form-group { margin-bottom: 20px; }
+    .form-group label { display: block; margin-bottom: 8px; color: #818cf8; font-weight: bold; }
+    .form-group input, .form-group textarea { width: 100%; padding: 12px; background: rgba(15,23,42,0.6); border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; color: white; font-family: inherit; box-sizing: border-box;}
+    .msg-success { background: #10b981; color: white; padding: 10px; border-radius: 8px; margin-bottom: 20px; text-align: center; }
+</style>
+
+<h1 style="color: #818cf8; text-align: center; margin-bottom: 30px;">أرشفة منتج جديد</h1>
+
+{% with messages = get_flashed_messages(category_filter=["success"]) %}
+    {% if messages %}<div class="msg-success">{{ messages[0] }}</div>{% endif %}
+{% endwith %}
+
+<form method="POST" enctype="multipart/form-data">
+    <div class="form-group">
+        <label>اسم المنتج</label>
+        <input type="text" name="name" placeholder="مثال: ساعة ذكية، أو هدايا Prize Box..." required>
+    </div>
+    <div class="form-group">
+        <label>وصف المنتج</label>
+        <textarea name="description" rows="4" placeholder="تفاصيل المنتج ومميزاته..."></textarea>
+    </div>
+    <div class="form-group">
+        <label>السعر</label>
+        <input type="text" name="price" placeholder="مثال: 150 ريال">
+    </div>
+    <div class="form-group">
+        <label>صورة المنتج (اختياري)</label>
+        <input type="file" name="image" accept="image/*">
+    </div>
+    <button type="submit" class="btn btn-blue" style="width: 100%; padding: 15px; font-size: 1.1rem;">حفظ في الأرشيف 💾</button>
+</form>
+{% endblock %}

@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+    .search-box { display: flex; gap: 10px; margin-bottom: 20px; }
+    .search-input { flex: 1; padding: 12px; background: rgba(15,23,42,0.6); border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; color: white; font-family: inherit;}
+    .product-card { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); padding: 20px; border-radius: 12px; margin-bottom: 20px; display: flex; gap: 20px; }
+    .product-img { width: 120px; height: 120px; object-fit: cover; border-radius: 8px; }
+    .product-info h3 { margin: 0 0 10px 0; color: #818cf8; }
+    .product-info p { margin: 5px 0; color: #cbd5e1; }
+    .msg-status { background: rgba(79, 70, 229, 0.2); padding: 10px; border-radius: 8px; text-align: center; margin-bottom: 20px;}
+</style>
+
+<h1 style="color: #818cf8; text-align: center; margin-bottom: 30px;">البحث في الأرشيف</h1>
+
+{% with messages = get_flashed_messages() %}
+    {% if messages %}<div class="msg-status">{{ messages[0] }}</div>{% endif %}
+{% endwith %}
+
+<form method="POST" enctype="multipart/form-data">
+    <div style="margin-bottom: 15px;">
+        <label style="color: #cbd5e1; font-weight: bold;">البحث بالنص:</label>
+        <div class="search-box">
+            <input type="text" name="search_text" class="search-input" placeholder="اكتب اسم المنتج للبحث...">
+            <button type="submit" class="btn btn-blue">بحث بالنص 🔍</button>
+        </div>
+    </div>
+    
+    <hr style="border-color: rgba(255,255,255,0.1); margin: 20px 0;">
+    
+    <div style="margin-bottom: 15px;">
+        <label style="color: #cbd5e1; font-weight: bold;">البحث برفع صورة (التعرف الذكي بـ AI):</label>
+        <div class="search-box">
+            <input type="file" name="search_image" accept="image/*" class="search-input">
+            <button type="submit" class="btn btn-green">بحث بالصورة 📸</button>
+        </div>
+    </div>
+</form>
+
+<div class="results-container" style="margin-top: 40px;">
+    {% if results %}
+        <h3 style="color: #10b981;">تم العثور على {{ results|length }} نتيجة:</h3>
+        {% for product in results %}
+        <div class="product-card">
+            {% if product.image_url %}
+                <img src="{{ product.image_url }}" alt="صورة المنتج" class="product-img">
+            {% else %}
+                <div class="product-img" style="background: #334155; display: flex; align-items: center; justify-content: center;">لا توجد صورة</div>
+            {% endif %}
+            <div class="product-info">
+                <h3>{{ product.name }}</h3>
+                <p><strong>السعر:</strong> {{ product.price or 'غير محدد' }}</p>
+                <p><strong>الوصف:</strong> {{ product.description }}</p>
+            </div>
+        </div>
+        {% endfor %}
+    {% endif %}
+</div>
+{% endblock %}
