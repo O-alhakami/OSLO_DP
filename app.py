@@ -162,39 +162,39 @@ def archive():
 def search_archive():
     results = []
     if request.method == 'POST':
-        search_text = request.form.get('search_text')
-        search_image = request.files.get('search_image')
-        
-        # تنظيف النص من أي مسافات فارغة
-        search_text = search_text.strip() if search_text else ""
-        
-        # البحث بالنص
-        if search_text:
-            results = Product.query.filter(Product.name.ilike(f"%{search_text}%")).all()
+        try:
+            search_text = request.form.get('search_text')
+            search_image = request.files.get('search_image')
             
-        # البحث بالصورة (التعرف الذكي)
-        elif search_image and search_image.filename != '':
-            try:
-                import io
-                from PIL import Image
+            search_text = search_text.strip() if search_text else ""
+            
+            # البحث بالنص
+            if search_text:
+                results = Product.query.filter(Product.name.ilike(f"%{search_text}%")).all()
                 
-                # قراءة الصورة في الذاكرة بأمان وتحويلها لصيغة قياسية (RGB) لتجنب أخطاء التوافق
+            # البحث بالصورة
+            elif search_image and search_image.filename != '':
+                # قراءة الصورة كبيانات خام مباشرة بدون Pillow لتوفير الذاكرة
                 image_bytes = search_image.read()
-                img = Image.open(io.BytesIO(image_bytes)).convert('RGB')
+                mime_type = search_image.mimetype
                 
-                model = genai.GenerativeModel('gemini-3.8-flash')
+                image_part = {
+                    "mime_type": mime_type,
+                    "data": image_bytes
+                }
+                
+                # استخدام الإصدار الرسمي والمستقر
+                model = genai.GenerativeModel('gemini-1.5-flash')
                 response = model.generate_content([
                     "استخرج اسم هذا المنتج الموجود في الصورة، أو نوعه العام بكلمة أو كلمتين فقط، وبدون أي تفاصيل إضافية ليتم استخدامه ككلمة بحث في قاعدة بيانات.", 
-                    img
+                    image_part
                 ])
                 
                 extracted_keyword = response.text.strip()
-                # البحث في قاعدة البيانات بناءً على الكلمة المستخرجة
                 results = Product.query.filter(Product.name.ilike(f"%{extracted_keyword}%")).all()
                 flash(f'تم التعرف على الصورة بنجاح كـ: {extracted_keyword}', 'success')
                 
-            except Exception as e:
-                # إظهار رسالة الخطأ التقنية لتسهيل معرفة السبب إذا تكرر
-                flash(f'فشل تحليل الصورة: {str(e)}', 'error')
-                
+        except Exception as e:
+            flash(f'حدث خطأ أثناء المعالجة: {str(e)}', 'error')
+            
     return render_template('search.html', results=results)
