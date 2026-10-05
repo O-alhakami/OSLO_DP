@@ -37,8 +37,9 @@ class User(UserMixin, db.Model):
     is_admin = db.Column(db.Boolean, default=False)
 
 class Product(db.Model):
+    __tablename__ = 'products_v2' # هذا السطر سيجبر النظام على إنشاء جدول جديد محدث
     id = db.Column(db.Integer, primary_key=True)
-    code = db.Column(db.String(20), unique=True, nullable=False) # كود المنتج الفريد
+    code = db.Column(db.String(20), unique=True, nullable=False)
     name = db.Column(db.String(200), nullable=False)
     description = db.Column(db.Text, nullable=True)
     price = db.Column(db.String(50), nullable=True)
@@ -161,21 +162,26 @@ def process_text():
 @login_required
 def archive():
     if request.method == 'POST':
-        name = request.form.get('name')
-        description = request.form.get('description')
-        price = request.form.get('price')
-        image_file = request.files.get('image')
-        
-        image_url = None
-        if image_file and image_file.filename != '':
-            image_url = upload_image_to_imgbb(image_file)
+        try:
+            name = request.form.get('name')
+            description = request.form.get('description')
+            price = request.form.get('price')
+            image_file = request.files.get('image')
             
-        unique_code = f"PRD-{secrets.token_hex(3).upper()}"
+            image_url = None
+            if image_file and image_file.filename != '':
+                image_url = upload_image_to_imgbb(image_file)
+                
+            unique_code = f"PRD-{secrets.token_hex(3).upper()}"
+                
+            new_product = Product(code=unique_code, name=name, description=description, price=price, image_url=image_url)
+            db.session.add(new_product)
+            db.session.commit()
+            flash(f'تمت أرشفة المنتج بنجاح! كود المنتج: {unique_code}', 'success')
+        except Exception as e:
+            db.session.rollback() # التراجع عن العملية لتجنب تعليق قاعدة البيانات
+            flash(f'فشلت عملية الأرشفة: {str(e)}', 'error')
             
-        new_product = Product(code=unique_code, name=name, description=description, price=price, image_url=image_url)
-        db.session.add(new_product)
-        db.session.commit()
-        flash(f'تمت أرشفة المنتج بنجاح! كود المنتج: {unique_code}', 'success')
         return redirect(url_for('archive'))
         
     return render_template('archive.html')
