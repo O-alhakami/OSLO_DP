@@ -98,8 +98,13 @@
         const productName = lines[0].replace(/^- /g, '').trim(); 
         const productDesc = lines.slice(1).join('\n').trim();
         
-        const url = `/archive?name=${encodeURIComponent(productName)}&desc=${encodeURIComponent(productDesc)}`;
-        window.location.href = url;
+        // الحل: حفظ البيانات في الذاكرة المؤقتة للمتصفح بدلاً من الرابط
+        sessionStorage.setItem('archive_name', productName);
+        sessionStorage.setItem('archive_desc', productDesc);
+        
+        // الانتقال لصفحة الأرشيف برابط نظيف وقصير جداً
+        window.location.href = '/archive';
+    
     }
 </script>
 {% endblock %}
