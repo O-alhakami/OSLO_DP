@@ -4,7 +4,7 @@
     .form-group { margin-bottom: 20px; }
     .form-group label { display: block; margin-bottom: 8px; color: #818cf8; font-weight: bold; }
     .form-group input, .form-group textarea { width: 100%; padding: 12px; background: rgba(15,23,42,0.6); border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; color: white; font-family: inherit; box-sizing: border-box;}
-    .msg-success { background: #10b981; color: white; padding: 10px; border-radius: 8px; margin-bottom: 20px; text-align: center; }
+    .msg-success { background: rgba(16, 185, 129, 0.2); border: 1px solid #10b981; color: #10b981; padding: 15px; border-radius: 8px; margin-bottom: 20px; text-align: center; font-weight: bold;}
 </style>
 
 <h1 style="color: #818cf8; text-align: center; margin-bottom: 30px;">أرشفة منتج جديد</h1>
@@ -16,20 +16,20 @@
 <form method="POST" enctype="multipart/form-data">
     <div class="form-group">
         <label>اسم المنتج</label>
-        <input type="text" name="name" placeholder="مثال: ساعة ذكية، أو هدايا Prize Box..." required>
+        <input type="text" name="name" value="{{ request.args.get('name', '') }}" required>
     </div>
     <div class="form-group">
-        <label>وصف المنتج</label>
-        <textarea name="description" rows="4" placeholder="تفاصيل المنتج ومميزاته..."></textarea>
+        <label>وصف وتفاصيل المنتج</label>
+        <textarea name="description" rows="8">{{ request.args.get('desc', '') }}</textarea>
     </div>
     <div class="form-group">
-        <label>السعر</label>
+        <label>السعر (إضافة يدوية)</label>
         <input type="text" name="price" placeholder="مثال: 150 ريال">
     </div>
     <div class="form-group">
-        <label>صورة المنتج (اختياري)</label>
+        <label>صورة المنتج (يتم رفعها لـ ImgBB وعرضها في البحث)</label>
         <input type="file" name="image" accept="image/*">
     </div>
-    <button type="submit" class="btn btn-blue" style="width: 100%; padding: 15px; font-size: 1.1rem;">حفظ في الأرشيف 💾</button>
+    <button type="submit" class="btn btn-blue" style="width: 100%; padding: 15px; font-size: 1.1rem;">حفظ في الأرشيف وإنشاء كود 💾</button>
 </form>
 {% endblock %}

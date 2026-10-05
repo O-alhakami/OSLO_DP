@@ -5,10 +5,20 @@
     .radio-label { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); padding: 10px 20px; border-radius: 10px; cursor: pointer; font-weight: 600; }
     input[type="radio"]:checked + .radio-label { background: var(--primary); }
     input[type="radio"] { display: none; }
+    
+    .input-section { margin-bottom: 20px; }
     textarea { width: 100%; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255,255,255,0.2); color: white; padding: 20px; border-radius: 15px; font-family: inherit; font-size: 1rem; min-height: 150px; box-sizing: border-box; }
-    .btn-main { width: 100%; background: linear-gradient(to right, var(--primary), #ec4899); border: none; padding: 16px; color: white; font-size: 1.2rem; font-weight: 700; border-radius: 12px; cursor: pointer; margin-top: 15px;}
-    .result-section { display: none; margin-top: 30px; }
+    .file-input-wrapper { margin-top: 15px; padding: 15px; background: rgba(0,0,0,0.2); border-radius: 10px; border: 1px dashed rgba(255,255,255,0.2); }
+    
+    .btn-main { width: 100%; background: linear-gradient(to right, var(--primary), #ec4899); border: none; padding: 16px; color: white; font-size: 1.2rem; font-weight: 700; border-radius: 12px; cursor: pointer; margin-top: 15px; font-family: inherit;}
+    .result-section { display: none; margin-top: 30px; animation: fadeIn 0.5s; }
+    .actions { display: flex; gap: 15px; margin-top: 15px; flex-wrap: wrap; }
+    .btn-action { flex: 1; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; padding: 12px; border-radius: 10px; cursor: pointer; font-family: inherit; font-weight: 600; transition: all 0.3s; min-width: 200px;}
+    .btn-action:hover { background: rgba(255,255,255,0.2); }
+    .btn-archive { background: #10b981; border-color: #059669; }
+    .btn-archive:hover { background: #059669; }
     #loadingIndicator { text-align: center; display: none; margin-top: 20px; color: #818cf8; font-weight: bold; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 </style>
 
 <h1 style="text-align: center; color: #818cf8; margin-bottom: 30px;">معالجة البيانات بالذكاء الاصطناعي</h1>
@@ -22,37 +32,74 @@
     <label for="mode_marketing" class="radio-label">📱 منشور تسويقي</label>
 </div>
 
-<textarea id="userInput" placeholder="الصق النص هنا..."></textarea>
+<div class="input-section">
+    <textarea id="userInput" placeholder="الصق النص أو بيانات المنتج هنا..."></textarea>
+    <div class="file-input-wrapper">
+        <label style="color: #cbd5e1; font-weight: bold; display: block; margin-bottom: 8px;">إضافة صورة للمنتج (اختياري - لاستخراج المكونات ودمجها):</label>
+        <input type="file" id="imageInput" accept="image/*" style="color: white;">
+    </div>
+</div>
+
 <button id="processBtn" class="btn-main" onclick="processData()">بدء المعالجة 🚀</button>
-<div id="loadingIndicator">جاري المعالجة... يرجى الانتظار</div>
+<div id="loadingIndicator">جاري المعالجة واستخراج المكونات... يرجى الانتظار</div>
 
 <div class="result-section" id="resultSection">
-    <textarea id="aiResult" rows="12" readonly></textarea>
+    <textarea id="aiResult" rows="14" readonly></textarea>
+    <div class="actions">
+        <button class="btn-action" onclick="copyResult()">📋 نسخ النص</button>
+        <button class="btn-action btn-archive" onclick="transferToArchive()">📦 أرشفة المنتج بالبيانات نفسها</button>
+    </div>
 </div>
 
 <script>
     async function processData() {
         const text = document.getElementById('userInput').value;
         const mode = document.querySelector('input[name="processing_mode"]:checked').value;
+        const imageFile = document.getElementById('imageInput').files[0];
+        
         const processBtn = document.getElementById('processBtn');
         const loading = document.getElementById('loadingIndicator');
         const resultSection = document.getElementById('resultSection');
         const aiResult = document.getElementById('aiResult');
 
-        if (!text.trim()) return alert('يرجى إدخال البيانات.');
+        if (!text.trim() && !imageFile) return alert('يرجى إدخال نص أو إرفاق صورة.');
         
         processBtn.disabled = true; loading.style.display = 'block'; resultSection.style.display = 'none';
+        
+        const formData = new FormData();
+        formData.append('text', text);
+        formData.append('mode', mode);
+        if (imageFile) formData.append('image', imageFile);
+
         try {
-            const response = await fetch('/process', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ text: text, mode: mode })
-            });
+            const response = await fetch('/process', { method: 'POST', body: formData });
             const data = await response.json();
-            if (response.ok) { aiResult.value = data.result; resultSection.style.display = 'block'; } 
-            else { alert('خطأ: ' + (data.error || 'غير معروف')); }
-        } catch (error) { alert('فشل الاتصال.'); } 
+            if (response.ok) { 
+                aiResult.value = data.result; 
+                resultSection.style.display = 'block'; 
+            } else { alert('خطأ: ' + (data.error || 'غير معروف')); }
+        } catch (error) { alert('فشل الاتصال بالخادم.'); } 
         finally { processBtn.disabled = false; loading.style.display = 'none'; }
+    }
+
+    function copyResult() {
+        const aiResult = document.getElementById('aiResult');
+        aiResult.select();
+        document.execCommand('copy');
+        alert('تم النسخ بنجاح!');
+    }
+
+    function transferToArchive() {
+        const fullText = document.getElementById('aiResult').value.trim();
+        if (!fullText) return;
+        
+        // فصل السطر الأول ليكون العنوان، والباقي هو الوصف
+        const lines = fullText.split('\n');
+        const productName = lines[0].replace(/^- /g, '').trim(); 
+        const productDesc = lines.slice(1).join('\n').trim();
+        
+        const url = `/archive?name=${encodeURIComponent(productName)}&desc=${encodeURIComponent(productDesc)}`;
+        window.location.href = url;
     }
 </script>
 {% endblock %}

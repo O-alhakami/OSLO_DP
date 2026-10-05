@@ -1,12 +1,14 @@
 import os
+import secrets
 import requests
-from PIL import Image
+import io
 from flask import Flask, render_template, request, jsonify, redirect, url_for, flash
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 import google.generativeai as genai
 from dotenv import load_dotenv
+from sqlalchemy import or_
 
 load_dotenv()
 app = Flask(__name__)
@@ -36,6 +38,7 @@ class User(UserMixin, db.Model):
 
 class Product(db.Model):
     id = db.Column(db.Integer, primary_key=True)
+    code = db.Column(db.String(20), unique=True, nullable=False) # كود المنتج الفريد
     name = db.Column(db.String(200), nullable=False)
     description = db.Column(db.Text, nullable=True)
     price = db.Column(db.String(50), nullable=True)
@@ -48,7 +51,7 @@ def load_user(user_id):
 with app.app_context():
     db.create_all()
 
-# --- دالة رفع الصور إلى ImgBB ---
+# --- دالة رفع الصور ---
 def upload_image_to_imgbb(image_file):
     url = "https://api.imgbb.com/1/upload"
     payload = {"key": IMGBB_API_KEY}
@@ -58,7 +61,7 @@ def upload_image_to_imgbb(image_file):
         return response.json()['data']['url']
     return None
 
-# --- مسارات المصادقة والإدارة (لم تتغير) ---
+# --- مسارات المصادقة والإدارة ---
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
@@ -79,10 +82,8 @@ def register():
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        username = request.form.get('username')
-        password = request.form.get('password')
-        user = User.query.filter_by(username=username).first()
-        if user and check_password_hash(user.password_hash, password):
+        user = User.query.filter_by(username=request.form.get('username')).first()
+        if user and check_password_hash(user.password_hash, request.form.get('password')):
             if not user.is_active:
                 flash('حسابك قيد المراجعة.', 'error')
                 return redirect(url_for('login'))
@@ -101,7 +102,7 @@ def logout():
 @login_required
 def admin():
     if not current_user.is_admin:
-        return "غير مصرح لك", 403
+        return "غير مصرح", 403
     if request.method == 'POST':
         user = User.query.get(request.form.get('user_id'))
         action = request.form.get('action')
@@ -112,7 +113,7 @@ def admin():
             db.session.commit()
     return render_template('admin.html', users=User.query.all())
 
-# --- مسارات الأداة الأساسية ---
+# --- مسار المعالجة الذكية ---
 @app.route('/')
 @login_required
 def index():
@@ -121,21 +122,41 @@ def index():
 @app.route('/process', methods=['POST'])
 @login_required
 def process_text():
-    data = request.json
-    mode = data.get('mode', 'product')
+    text = request.form.get('text', '')
+    mode = request.form.get('mode', 'product')
+    image_file = request.files.get('image')
+    
+    # أوامر هندسة نصوص صارمة لتنفيذ طلبك بالحرف
+    system_prompt = """
+    أنت صانع محتوى احترافي. التزم بهذه القواعد الصارمة حرفياً ولا تخالفها أبداً:
+    1. اكتب النص المطلوب مباشرة بدون أي مقدمات أو ترحيب (لا تكتب "إليك الوصف" أو "بناءً على الصورة").
+    2. لا تذكر أو تخمن أي سعر نهائياً.
+    3. يمنع منعاً باتاً استخدام علامة النجمة (*) أو المربعات في التنسيق. استخدم فقط علامة الشرطة (-) لعمل قائمة نقطية.
+    4. إذا كان هناك صورة مرفقة، استخرج بدقة أسماء الأشياء والمكونات التي تراها في الصورة وادمجها بتناسق كجزء من الوصف والمميزات.
+    5. يجب أن يكون السطر الأول من الإجابة هو اسم المنتج فقط.
+    6. في نهاية النص تماماً، اترك سطراً فارغاً ثم اكتب 5 هاشتاجات قوية ومناسبة لانستجرام وتيك توك تتعلق بالمنتج ومكوناته.
+    """
+    
     prompts = {
-        "product": "استخرج اسم المنتج، مميزاته، وسعره من النص ونسقها في نقاط.",
-        "seo": "استخرج أفضل كلمات مفتاحية واكتب Meta Description.",
-        "marketing": "اكتب منشوراً تسويقياً جذاباً."
+        "product": "في السطر الأول اكتب اسم المنتج. في الأسطر التالية اكتب مميزاته ووصفه ومكوناته بشكل جذاب للمشتري.",
+        "seo": "في السطر الأول اكتب اسم المنتج. ثم اكتب أفضل كلمات مفتاحية (SEO) ووصف تسويقي قصير (Meta Description).",
+        "marketing": "في السطر الأول اكتب اسم المنتج. ثم اكتب منشوراً تسويقياً جذاباً مع عبارات تحفيزية."
     }
+    
+    content_to_send = [system_prompt + "\nالمطلوب: " + prompts.get(mode) + f"\n\nالنص المدخل:\n{text}"]
+    
+    if image_file and image_file.filename != '':
+        image_bytes = image_file.read()
+        content_to_send.append({"mime_type": image_file.mimetype, "data": image_bytes})
+        
     try:
         model = genai.GenerativeModel('gemini-3.8-flash')
-        response = model.generate_content(f"{prompts.get(mode)}\n\n{data.get('text', '')}")
-        return jsonify({"result": response.text})
+        response = model.generate_content(content_to_send)
+        return jsonify({"result": response.text.strip()})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-# --- مسارات الأرشيف الجديدة ---
+# --- مسارات الأرشيف والبحث ---
 @app.route('/archive', methods=['GET', 'POST'])
 @login_required
 def archive():
@@ -149,10 +170,12 @@ def archive():
         if image_file and image_file.filename != '':
             image_url = upload_image_to_imgbb(image_file)
             
-        new_product = Product(name=name, description=description, price=price, image_url=image_url)
+        unique_code = f"PRD-{secrets.token_hex(3).upper()}"
+            
+        new_product = Product(code=unique_code, name=name, description=description, price=price, image_url=image_url)
         db.session.add(new_product)
         db.session.commit()
-        flash('تمت أرشفة المنتج بنجاح!', 'success')
+        flash(f'تمت أرشفة المنتج بنجاح! كود المنتج: {unique_code}', 'success')
         return redirect(url_for('archive'))
         
     return render_template('archive.html')
@@ -168,34 +191,50 @@ def search_archive():
             
             search_text = search_text.strip() if search_text else ""
             
-            # البحث بالنص
+            # البحث النصي (اسم، وصف، أو كود)
             if search_text:
-                results = Product.query.filter(Product.name.ilike(f"%{search_text}%")).all()
+                keywords = search_text.split()
+                conditions = []
+                for kw in keywords:
+                    if len(kw) > 1:
+                        conditions.append(Product.name.ilike(f"%{kw}%"))
+                        conditions.append(Product.description.ilike(f"%{kw}%"))
+                        conditions.append(Product.code.ilike(f"%{kw}%"))
                 
-            # البحث بالصورة
+                if conditions:
+                    results = list(set(Product.query.filter(or_(*conditions)).all()))
+                    
+            # البحث بالصورة (تفكيك المكونات والمطابقة)
             elif search_image and search_image.filename != '':
-                # قراءة الصورة كبيانات خام مباشرة لتوفير الذاكرة
                 image_bytes = search_image.read()
-                mime_type = search_image.mimetype
+                image_part = {"mime_type": search_image.mimetype, "data": image_bytes}
                 
-                image_part = {
-                    "mime_type": mime_type,
-                    "data": image_bytes
-                }
-                
-                # استخدام النموذج المتوافق مع مفتاحك
                 model = genai.GenerativeModel('gemini-3.8-flash')
+                prompt = "استخرج جميع أسماء المنتجات والأشياء والمكونات الواضحة في هذه الصورة. اكتبها ككلمات مفردة فقط مفصولة بمسافة فارغة بدون أي نصوص أو رموز أخرى."
+                response = model.generate_content([prompt, image_part])
                 
-                response = model.generate_content([
-                    "استخرج اسم هذا المنتج الموجود في الصورة، أو نوعه العام بكلمة أو كلمتين فقط، وبدون أي تفاصيل إضافية ليتم استخدامه ككلمة بحث في قاعدة بيانات.", 
-                    image_part
-                ])
+                extracted_keywords = response.text.strip().split()
                 
-                extracted_keyword = response.text.strip()
-                results = Product.query.filter(Product.name.ilike(f"%{extracted_keyword}%")).all()
-                flash(f'تم التعرف على الصورة بنجاح كـ: {extracted_keyword}', 'success')
+                if extracted_keywords:
+                    conditions = []
+                    for kw in extracted_keywords:
+                        if len(kw) > 2: # تجاهل الحروف والكلمات القصيرة جداً
+                            conditions.append(Product.name.ilike(f"%{kw}%"))
+                            conditions.append(Product.description.ilike(f"%{kw}%"))
+                            
+                    if conditions:
+                        results = list(set(Product.query.filter(or_(*conditions)).all()))
+                        
+                kw_string = "، ".join(extracted_keywords)
+                if results:
+                    flash(f'تم تحليل مكونات الصورة بنجاح: ({kw_string})', 'success')
+                else:
+                    flash(f'تعرف الذكاء الاصطناعي على: ({kw_string}) ولكن لم يعثر على تطابق في الأرشيف.', 'error')
                 
         except Exception as e:
             flash(f'حدث خطأ أثناء المعالجة: {str(e)}', 'error')
             
     return render_template('search.html', results=results)
+
+if __name__ == '__main__':
+    app.run(debug=True)
