@@ -174,7 +174,7 @@ def search_archive():
                 
             # البحث بالصورة
             elif search_image and search_image.filename != '':
-                # قراءة الصورة كبيانات خام مباشرة بدون Pillow لتوفير الذاكرة
+                # قراءة الصورة كبيانات خام مباشرة لتوفير الذاكرة
                 image_bytes = search_image.read()
                 mime_type = search_image.mimetype
                 
@@ -183,8 +183,9 @@ def search_archive():
                     "data": image_bytes
                 }
                 
-                # استخدام الإصدار الرسمي والمستقر
-                model = genai.GenerativeModel('gemini-1.5-flash')
+                # استخدام النموذج المتوافق مع مفتاحك
+                model = genai.GenerativeModel('gemini-3.8-flash')
+                
                 response = model.generate_content([
                     "استخرج اسم هذا المنتج الموجود في الصورة، أو نوعه العام بكلمة أو كلمتين فقط، وبدون أي تفاصيل إضافية ليتم استخدامه ككلمة بحث في قاعدة بيانات.", 
                     image_part
