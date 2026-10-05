@@ -10,7 +10,6 @@ load_dotenv()
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "oslo_super_secret_key_123")
 
-# إعداد قاعدة البيانات (يدعم PostgreSQL على Render و SQLite محلياً)
 db_url = os.environ.get("DATABASE_URL", "sqlite:///users.db")
 if db_url.startswith("postgres://"):
     db_url = db_url.replace("postgres://", "postgresql://", 1)
@@ -22,52 +21,37 @@ login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
 
-# إعداد Gemini API
 genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
 
-# نموذج المستخدم في قاعدة البيانات
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(100), unique=True, nullable=False)
     password_hash = db.Column(db.String(200), nullable=False)
-    is_active = db.Column(db.Boolean, default=False) # الحساب يحتاج تفعيل
+    is_active = db.Column(db.Boolean, default=False)
     is_admin = db.Column(db.Boolean, default=False)
 
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
 
-# إنشاء الجداول عند التشغيل الأول
 with app.app_context():
     db.create_all()
-
-# --- مسارات المصادقة ---
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
         username = request.form.get('username')
         password = request.form.get('password')
-        
-        user_exists = User.query.filter_by(username=username).first()
-        if user_exists:
+        if User.query.filter_by(username=username).first():
             flash('اسم المستخدم موجود مسبقاً', 'error')
             return redirect(url_for('register'))
             
         hashed_password = generate_password_hash(password)
         is_first_user = User.query.count() == 0
-        
-        # أول مستخدم يسجل يصبح مسؤولاً ومفعلاً تلقائياً
-        new_user = User(
-            username=username, 
-            password_hash=hashed_password,
-            is_active=is_first_user, 
-            is_admin=is_first_user
-        )
+        new_user = User(username=username, password_hash=hashed_password, is_active=is_first_user, is_admin=is_first_user)
         db.session.add(new_user)
         db.session.commit()
-        
-        flash('تم طلب إنشاء الحساب. يرجى انتظار تفعيل المسؤول.', 'success')
+        flash('تم طلب إنشاء الحساب بنجاح. يرجى انتظار التفعيل من الإدارة.', 'success')
         return redirect(url_for('login'))
     return render_template('register.html')
 
@@ -77,14 +61,12 @@ def login():
         username = request.form.get('username')
         password = request.form.get('password')
         user = User.query.filter_by(username=username).first()
-        
         if user and check_password_hash(user.password_hash, password):
             if not user.is_active:
                 flash('حسابك قيد المراجعة ولم يتم تفعيله بعد.', 'error')
                 return redirect(url_for('login'))
             login_user(user)
             return redirect(url_for('index'))
-            
         flash('اسم المستخدم أو كلمة المرور غير صحيحة', 'error')
     return render_template('login.html')
 
@@ -94,32 +76,22 @@ def logout():
     logout_user()
     return redirect(url_for('login'))
 
-# --- لوحة الإدارة ---
-
 @app.route('/admin', methods=['GET', 'POST'])
 @login_required
 def admin():
     if not current_user.is_admin:
         return "غير مصرح لك بالدخول", 403
-        
     if request.method == 'POST':
         user_id = request.form.get('user_id')
         action = request.form.get('action')
         user = User.query.get(user_id)
-        
         if user:
-            if action == 'activate':
-                user.is_active = True
-            elif action == 'deactivate':
-                user.is_active = False
-            elif action == 'make_admin':
-                user.is_admin = True
+            if action == 'activate': user.is_active = True
+            elif action == 'deactivate': user.is_active = False
+            elif action == 'make_admin': user.is_admin = True
             db.session.commit()
-            
     users = User.query.all()
     return render_template('admin.html', users=users)
-
-# --- مسارات الأداة الأساسية ---
 
 PROMPTS = {
     "product": "أنت خبير تجارة إلكترونية. استخرج اسم المنتج، مميزاته، وسعره من النص، ونسقها في نقاط.",
@@ -138,14 +110,12 @@ def process_text():
     data = request.json
     user_text = data.get('text', '')
     mode = data.get('mode', 'product')
-    
     if not user_text:
         return jsonify({"error": "لم يتم إدخال أي نص"}), 400
         
     full_prompt = f"{PROMPTS.get(mode, PROMPTS['product'])}\n\n--- النص ---\n{user_text}"
-    
     try:
-        model = genai.GenerativeModel('gemini-3.8-flash')
+        model = genai.GenerativeModel('gemini-1.5-flash')
         response = model.generate_content(full_prompt)
         return jsonify({"result": response.text})
     except Exception as e:

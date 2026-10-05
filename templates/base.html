@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OSLO DP</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;800&display=swap" rel="stylesheet">
+    <style>
+        :root { --primary: #4F46E5; --bg: #0f172a; --surface: #1e293b; --text: #f8fafc; }
+        body { margin: 0; font-family: 'Cairo', sans-serif; background: var(--bg); color: var(--text); display: flex; min-height: 100vh; }
+        
+        /* تصميم القائمة الجانبية */
+        .sidebar { width: 260px; background: var(--surface); padding: 25px 20px; border-left: 1px solid rgba(255,255,255,0.05); display: flex; flex-direction: column; box-shadow: -5px 0 15px rgba(0,0,0,0.3); }
+        .sidebar h2 { color: #818cf8; text-align: center; font-weight: 800; margin-bottom: 40px; font-size: 2rem; }
+        .sidebar a { color: var(--text); text-decoration: none; padding: 15px; margin-bottom: 15px; border-radius: 10px; transition: 0.3s; background: rgba(255,255,255,0.03); font-weight: 600; display: block;}
+        .sidebar a:hover { background: var(--primary); transform: translateX(-5px); }
+        .sidebar .disabled-tab { opacity: 0.4; cursor: not-allowed; }
+        .sidebar .disabled-tab:hover { background: rgba(255,255,255,0.03); transform: none; }
+        .sidebar .logout { margin-top: auto; background: #ec4899; text-align: center; }
+        .sidebar .logout:hover { background: #be185d; }
+
+        /* تصميم المحتوى الرئيسي */
+        .content { flex: 1; padding: 40px; overflow-y: auto; }
+        .card { background: rgba(30, 41, 59, 0.7); padding: 40px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); max-width: 900px; margin: 0 auto; backdrop-filter: blur(10px); }
+        
+        /* تنسيقات عامة للنماذج والجداول */
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { padding: 15px; border: 1px solid rgba(255,255,255,0.1); text-align: center; }
+        th { background: rgba(255,255,255,0.05); color: #818cf8; }
+        .btn { padding: 8px 15px; border: none; border-radius: 8px; cursor: pointer; color: white; font-family: inherit; font-weight: bold; margin: 2px;}
+        .btn-green { background: #10b981; } .btn-red { background: #ef4444; } .btn-blue { background: #3b82f6; }
+    </style>
+</head>
+<body>
+    <div class="sidebar">
+        <h2>OSLO DP</h2>
+        <a href="{{ url_for('index') }}">🏠 لوحة التحكم (الرئيسية)</a>
+        {% if current_user.is_admin %}
+            <a href="{{ url_for('admin') }}">⚙️ إدارة المستخدمين</a>
+        {% endif %}
+        <!-- تبويبات مستقبلية جاهزة للاستخدام -->
+        <a href="#" class="disabled-tab">📑 تبويب مستقبلي 1</a>
+        <a href="#" class="disabled-tab">📑 تبويب مستقبلي 2</a>
+        
+        <a href="{{ url_for('logout') }}" class="logout">🚪 تسجيل الخروج</a>
+    </div>
+
+    <div class="content">
+        <div class="card">
+            {% block content %}{% endblock %}
+        </div>
+    </div>
+</body>
+</html>
