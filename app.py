@@ -69,6 +69,10 @@ def upload_image_to_imgbb(image_file):
 import time # تأكد من إضافة هذا في أعلى الملف إذا لم يكن موجوداً
 
 # --- محرك OpenRouter التلقائي الذكي (لا يعطي خطأ 404 أبداً) ---
+import time
+import base64
+
+# --- محرك OpenRouter الذكي (مفصول الرؤية عن النص) ---
 def generate_with_openrouter(prompt_text, image_bytes=None, mimetype=None):
     if not OPENROUTER_API_KEY:
         raise Exception("مفتاح OPENROUTER_API_KEY مفقود من الإعدادات.")
@@ -78,22 +82,25 @@ def generate_with_openrouter(prompt_text, image_bytes=None, mimetype=None):
         api_key=OPENROUTER_API_KEY,
     )
     
-    # الحل الجذري: نستخدم الموجه التلقائي الذي يختار أفضل نموذج مجاني متاح حالياً
-    model_name = "openrouter/free"
-    
     if image_bytes:
+        # إذا كان الطلب يحتوي على صورة، لا نستخدم الموجه التلقائي لأنه يخطئ.
+        # بل نستخدم أحدث نماذج الرؤية (Vision) المجانية والمضمونة:
+        models_to_try = [
+            "meta-llama/llama-3.2-11b-vision-instruct:free", # الأحدث والأقوى من ميتا
+            "qwen/qwen-2-vl-7b-instruct:free"               # بديل صيني دقيق جداً
+        ]
         base64_image = base64.b64encode(image_bytes).decode('utf-8')
         content = [
             {"type": "text", "text": prompt_text},
             {"type": "image_url", "image_url": {"url": f"data:{mimetype};base64,{base64_image}"}}
         ]
     else:
+        # في حالة النصوص، الموجه التلقائي ممتاز وسريع
+        models_to_try = ["openrouter/free"]
         content = prompt_text
 
     last_error = ""
-    
-    # نعطي النظام 3 محاولات تحسباً لأي ضغط مؤقت في سيرفرات النماذج المجانية
-    for attempt in range(3):
+    for model_name in models_to_try:
         try:
             response = client.chat.completions.create(
                 model=model_name,
@@ -103,13 +110,21 @@ def generate_with_openrouter(prompt_text, image_bytes=None, mimetype=None):
                     "X-Title": "OSLO DP"
                 }
             )
-            return response.choices[0].message.content.strip()
+            
+            result = response.choices[0].message.content.strip()
+            
+            # فلتر ذكي: إذا قام النموذج بالهلوسة وأرجع كلمات أنظمة حماية بدلاً من المكونات، نرفض النتيجة ليجرب النموذج التالي
+            if "Safety" in result or "safe" in result.lower() or "User" in result:
+                raise Exception("النموذج أرجع بيانات حماية بدلاً من قراءة الصورة.")
+                
+            return result
+            
         except Exception as e:
             last_error = str(e)
-            time.sleep(2) # انتظار ثانيتين قبل المحاولة التالية لتخفيف الضغط
+            time.sleep(1) # ننتظر ثانية واحدة ثم نجرب النموذج البديل
             continue 
             
-    raise Exception(f"جميع الخوادم المجانية مشغولة جداً حالياً. (آخر خطأ: {last_error})")
+    raise Exception(f"فشلت المعالجة في الخوادم المجانية. (آخر خطأ: {last_error})")
 
 # --- مسارات المصادقة والإدارة ---
 @app.route('/register', methods=['GET', 'POST'])
