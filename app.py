@@ -65,22 +65,21 @@ def upload_image_to_imgbb(image_file):
 
 # --- محرك OpenRouter الذكي للمحاولات المتعددة والنماذج المجانية ---
 # --- محرك OpenRouter الذكي للمحاولات المتعددة والنماذج المجانية ---
+# --- محرك OpenRouter الذكي للمحاولات المتعددة والنماذج المجانية (مُحدّث) ---
 def generate_with_openrouter(prompt_text, image_bytes=None, mimetype=None):
     if not OPENROUTER_API_KEY:
         raise Exception("مفتاح OPENROUTER_API_KEY مفقود من الإعدادات.")
         
-    # تهيئة عميل OpenAI ليعمل مع سيرفرات OpenRouter
     client = OpenAI(
         base_url="https://openrouter.ai/api/v1",
         api_key=OPENROUTER_API_KEY,
     )
     
-    # تحديد النماذج والمحتوى بناءً على وجود صورة أو لا
     if image_bytes:
-        # نماذج مجانية تدعم الرؤية (Vision)
+        # نماذج مجانية ومستقرة تدعم الرؤية (Vision)
         models = [
-            "qwen/qwen-2-vl-7b-instruct:free",
-            "google/gemini-1.5-flash-exp:free"
+            "google/gemini-1.5-flash-8b", # أسرع وأحدث نموذج مجاني من جوجل
+            "qwen/qwen-2-vl-7b-instruct:free" # نموذج بديل ممتاز للصور
         ]
         base64_image = base64.b64encode(image_bytes).decode('utf-8')
         content = [
@@ -88,10 +87,10 @@ def generate_with_openrouter(prompt_text, image_bytes=None, mimetype=None):
             {"type": "image_url", "image_url": {"url": f"data:{mimetype};base64,{base64_image}"}}
         ]
     else:
-        # نماذج مجانية قوية جداً للنصوص
+        # نماذج مجانية قوية جداً للنصوص (تم تصحيح الأسماء)
         models = [
-            "meta-llama/llama-3.1-8b-instruct:free",
-            "google/gemma-2-9b-it:free"
+            "meta-llama/llama-3.1-8b-instruct:free", # الأفضل للنصوص حالياً
+            "mistralai/mistral-7b-instruct:free"      # نموذج احتياطي مستقر جداً
         ]
         content = prompt_text
 
@@ -101,7 +100,6 @@ def generate_with_openrouter(prompt_text, image_bytes=None, mimetype=None):
             response = client.chat.completions.create(
                 model=model_name,
                 messages=[{"role": "user", "content": content}],
-                # تم تصحيح الكلمة هنا من headers إلى extra_headers لتتوافق مع التحديث الأخير
                 extra_headers={
                     "HTTP-Referer": "https://oslo-dp.onrender.com",
                     "X-Title": "OSLO DP"
@@ -110,7 +108,7 @@ def generate_with_openrouter(prompt_text, image_bytes=None, mimetype=None):
             return response.choices[0].message.content.strip()
         except Exception as e:
             last_error = str(e)
-            continue # حاول مع النموذج المجاني التالي
+            continue # حاول مع النموذج التالي في حالة فشل هذا النموذج
             
     raise Exception(f"فشلت المعالجة من OpenRouter. (آخر خطأ: {last_error})")
 
