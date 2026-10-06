@@ -56,12 +56,13 @@
         <h3 style="color: #10b981; margin-bottom: 20px;">تم العثور على {{ results|length }} نتيجة مطابقة:</h3>
         {% for product in results %}
         <div class="product-card">
-            <!-- مربع عرض الصورة من ImgBB -->
+            <!-- مربع عرض الصورة من ImgBB (مُحسّن لاستهلاك صفر موارد) -->
             <div class="product-img-wrapper">
                 {% if product.image_url %}
-                    <img src="{{ product.image_url }}" alt="صورة المنتج" class="product-img">
+                    <!-- تم إضافة loading="lazy" لعدم تحميل الصورة إلا عندما يصل إليها المستخدم (تسريع الموقع) -->
+                    <img src="{{ product.image_url }}" alt="{{ product.name }}" class="product-img" loading="lazy" onerror="this.onerror=null; this.parentElement.innerHTML='<span style=\'color: #ef4444; font-size: 0.85rem; text-align: center;\'>الرابط معطوب</span>';">
                 {% else %}
-                    <span style="color: #64748b; font-size: 0.9rem;">لا توجد صورة مسجلة</span>
+                    <span style="color: #64748b; font-size: 0.9rem; text-align: center; padding: 10px;">لا توجد صورة مسجلة</span>
                 {% endif %}
             </div>
             
