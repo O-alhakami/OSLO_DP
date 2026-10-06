@@ -64,6 +64,7 @@ def upload_image_to_imgbb(image_file):
     return None
 
 # --- محرك OpenRouter الذكي للمحاولات المتعددة والنماذج المجانية ---
+# --- محرك OpenRouter الذكي للمحاولات المتعددة والنماذج المجانية ---
 def generate_with_openrouter(prompt_text, image_bytes=None, mimetype=None):
     if not OPENROUTER_API_KEY:
         raise Exception("مفتاح OPENROUTER_API_KEY مفقود من الإعدادات.")
@@ -87,7 +88,7 @@ def generate_with_openrouter(prompt_text, image_bytes=None, mimetype=None):
             {"type": "image_url", "image_url": {"url": f"data:{mimetype};base64,{base64_image}"}}
         ]
     else:
-        # نماذج مجانية قوية جداً للنصوص (Meta Llama و Gemma)
+        # نماذج مجانية قوية جداً للنصوص
         models = [
             "meta-llama/llama-3.1-8b-instruct:free",
             "google/gemma-2-9b-it:free"
@@ -100,7 +101,8 @@ def generate_with_openrouter(prompt_text, image_bytes=None, mimetype=None):
             response = client.chat.completions.create(
                 model=model_name,
                 messages=[{"role": "user", "content": content}],
-                headers={
+                # تم تصحيح الكلمة هنا من headers إلى extra_headers لتتوافق مع التحديث الأخير
+                extra_headers={
                     "HTTP-Referer": "https://oslo-dp.onrender.com",
                     "X-Title": "OSLO DP"
                 }
