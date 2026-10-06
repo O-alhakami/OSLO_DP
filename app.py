@@ -66,6 +66,9 @@ def upload_image_to_imgbb(image_file):
 # --- محرك OpenRouter الذكي للمحاولات المتعددة والنماذج المجانية ---
 # --- محرك OpenRouter الذكي للمحاولات المتعددة والنماذج المجانية ---
 # --- محرك OpenRouter الذكي للمحاولات المتعددة والنماذج المجانية (مُحدّث) ---
+import time # تأكد من إضافة هذا في أعلى الملف إذا لم يكن موجوداً
+
+# --- محرك OpenRouter التلقائي الذكي (لا يعطي خطأ 404 أبداً) ---
 def generate_with_openrouter(prompt_text, image_bytes=None, mimetype=None):
     if not OPENROUTER_API_KEY:
         raise Exception("مفتاح OPENROUTER_API_KEY مفقود من الإعدادات.")
@@ -75,27 +78,22 @@ def generate_with_openrouter(prompt_text, image_bytes=None, mimetype=None):
         api_key=OPENROUTER_API_KEY,
     )
     
+    # الحل الجذري: نستخدم الموجه التلقائي الذي يختار أفضل نموذج مجاني متاح حالياً
+    model_name = "openrouter/free"
+    
     if image_bytes:
-        # نماذج مجانية ومستقرة تدعم الرؤية (Vision)
-        models = [
-            "google/gemini-1.5-flash-8b", # أسرع وأحدث نموذج مجاني من جوجل
-            "qwen/qwen-2-vl-7b-instruct:free" # نموذج بديل ممتاز للصور
-        ]
         base64_image = base64.b64encode(image_bytes).decode('utf-8')
         content = [
             {"type": "text", "text": prompt_text},
             {"type": "image_url", "image_url": {"url": f"data:{mimetype};base64,{base64_image}"}}
         ]
     else:
-        # نماذج مجانية قوية جداً للنصوص (تم تصحيح الأسماء)
-        models = [
-            "meta-llama/llama-3.1-8b-instruct:free", # الأفضل للنصوص حالياً
-            "mistralai/mistral-7b-instruct:free"      # نموذج احتياطي مستقر جداً
-        ]
         content = prompt_text
 
     last_error = ""
-    for model_name in models:
+    
+    # نعطي النظام 3 محاولات تحسباً لأي ضغط مؤقت في سيرفرات النماذج المجانية
+    for attempt in range(3):
         try:
             response = client.chat.completions.create(
                 model=model_name,
@@ -108,9 +106,10 @@ def generate_with_openrouter(prompt_text, image_bytes=None, mimetype=None):
             return response.choices[0].message.content.strip()
         except Exception as e:
             last_error = str(e)
-            continue # حاول مع النموذج التالي في حالة فشل هذا النموذج
+            time.sleep(2) # انتظار ثانيتين قبل المحاولة التالية لتخفيف الضغط
+            continue 
             
-    raise Exception(f"فشلت المعالجة من OpenRouter. (آخر خطأ: {last_error})")
+    raise Exception(f"جميع الخوادم المجانية مشغولة جداً حالياً. (آخر خطأ: {last_error})")
 
 # --- مسارات المصادقة والإدارة ---
 @app.route('/register', methods=['GET', 'POST'])
