@@ -114,6 +114,31 @@ def admin():
             db.session.commit()
     return render_template('admin.html', users=User.query.all())
 
+# --- دالة الذكاء الاصطناعي الذكية (نظام الانتقال الاحتياطي) ---
+def generate_with_fallback(contents):
+    # قائمة النماذج التي سيجربها النظام بالترتيب
+    models_to_try = [
+        'gemini-1.5-flash',  # الأسرع والأساسي
+        'gemini-1.5-pro',    # نموذج احترافي قوي كبديل أول
+        'gemini-1.0-pro',    # بديل ثاني
+        'gemini-3.8-flash'   # بديل أخير
+    ]
+    
+    last_error = ""
+    for model_name in models_to_try:
+        try:
+            model = genai.GenerativeModel(model_name)
+            response = model.generate_content(contents)
+            return response.text.strip()
+        except Exception as e:
+            last_error = str(e)
+            # إذا فشل هذا النموذج (بسبب ضغط، أو نفاد الحد)، استمر وجرب النموذج الذي يليه
+            continue
+            
+    # إذا استنفدنا كل النماذج وفشلت جميعها
+    raise Exception(f"عذراً، جميع خوادم الذكاء الاصطناعي مشغولة حالياً. (آخر خطأ: {last_error})")
+
+
 # --- مسار المعالجة الذكية ---
 @app.route('/')
 @login_required
@@ -151,9 +176,9 @@ def process_text():
         content_to_send.append({"mime_type": image_file.mimetype, "data": image_bytes})
         
     try:
-        model = genai.GenerativeModel('gemini-3.8-flash')
-        response = model.generate_content(content_to_send)
-        return jsonify({"result": response.text.strip()})
+        # استخدام الدالة الذكية بدلاً من استدعاء نموذج واحد
+        result_text = generate_with_fallback(content_to_send)
+        return jsonify({"result": result_text})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -215,11 +240,12 @@ def search_archive():
                 image_bytes = search_image.read()
                 image_part = {"mime_type": search_image.mimetype, "data": image_bytes}
                 
-                model = genai.GenerativeModel('gemini-3.8-flash')
                 prompt = "استخرج جميع أسماء المنتجات والأشياء والمكونات الواضحة في هذه الصورة. اكتبها ككلمات مفردة فقط مفصولة بمسافة فارغة بدون أي نصوص أو رموز أخرى."
-                response = model.generate_content([prompt, image_part])
                 
-                extracted_keywords = response.text.strip().split()
+                # استخدام الدالة الذكية
+                result_text = generate_with_fallback([prompt, image_part])
+                
+                extracted_keywords = result_text.split()
                 
                 if extracted_keywords:
                     conditions = []
