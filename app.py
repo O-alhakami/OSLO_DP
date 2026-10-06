@@ -71,8 +71,9 @@ import time # تأكد من إضافة هذا في أعلى الملف إذا ل
 # --- محرك OpenRouter التلقائي الذكي (لا يعطي خطأ 404 أبداً) ---
 import time
 import base64
+from openai import OpenAI
 
-# --- محرك OpenRouter الذكي (مفصول الرؤية عن النص) ---
+# --- محرك OpenRouter الذكي والمُحدّث (لتجاوز أخطاء 404) ---
 def generate_with_openrouter(prompt_text, image_bytes=None, mimetype=None):
     if not OPENROUTER_API_KEY:
         raise Exception("مفتاح OPENROUTER_API_KEY مفقود من الإعدادات.")
@@ -83,11 +84,11 @@ def generate_with_openrouter(prompt_text, image_bytes=None, mimetype=None):
     )
     
     if image_bytes:
-        # إذا كان الطلب يحتوي على صورة، لا نستخدم الموجه التلقائي لأنه يخطئ.
-        # بل نستخدم أحدث نماذج الرؤية (Vision) المجانية والمضمونة:
+        # قائمة أحدث النماذج المجانية الداعمة للصور (تم تحديثها لتتوافق مع منصة OpenRouter اليوم)
         models_to_try = [
-            "meta-llama/llama-3.2-11b-vision-instruct:free", # الأحدث والأقوى من ميتا
-            "qwen/qwen-2-vl-7b-instruct:free"               # بديل صيني دقيق جداً
+            "qwen/qwen3.8-27b:free",               # أقوى نموذج صيني مجاني حالياً للرؤية
+            "thinkingmachines/inkling-small:free", # نموذج بديل وممتاز للصور
+            "openrouter/free"                      # الموجه التلقائي كخط دفاع أخير إذا تم حذف النماذج السابقة
         ]
         base64_image = base64.b64encode(image_bytes).decode('utf-8')
         content = [
@@ -95,7 +96,7 @@ def generate_with_openrouter(prompt_text, image_bytes=None, mimetype=None):
             {"type": "image_url", "image_url": {"url": f"data:{mimetype};base64,{base64_image}"}}
         ]
     else:
-        # في حالة النصوص، الموجه التلقائي ممتاز وسريع
+        # في حالة النصوص الموجه التلقائي يعمل بكفاءة وبدون أخطاء
         models_to_try = ["openrouter/free"]
         content = prompt_text
 
@@ -113,7 +114,7 @@ def generate_with_openrouter(prompt_text, image_bytes=None, mimetype=None):
             
             result = response.choices[0].message.content.strip()
             
-            # فلتر ذكي: إذا قام النموذج بالهلوسة وأرجع كلمات أنظمة حماية بدلاً من المكونات، نرفض النتيجة ليجرب النموذج التالي
+            # فلتر ذكي: إذا قام النموذج بالهلوسة وأرجع كلمات أنظمة حماية، نرفضه ليجرب النموذج التالي
             if "Safety" in result or "safe" in result.lower() or "User" in result:
                 raise Exception("النموذج أرجع بيانات حماية بدلاً من قراءة الصورة.")
                 
@@ -121,10 +122,10 @@ def generate_with_openrouter(prompt_text, image_bytes=None, mimetype=None):
             
         except Exception as e:
             last_error = str(e)
-            time.sleep(1) # ننتظر ثانية واحدة ثم نجرب النموذج البديل
+            time.sleep(1) # ننتظر ثانية لتخفيف الضغط ثم ننتقل للنموذج البديل
             continue 
             
-    raise Exception(f"فشلت المعالجة في الخوادم المجانية. (آخر خطأ: {last_error})")
+    raise Exception(f"عذراً، النماذج المجانية للصور معطلة من المصدر حالياً. (آخر خطأ: {last_error})")
 
 # --- مسارات المصادقة والإدارة ---
 @app.route('/register', methods=['GET', 'POST'])
