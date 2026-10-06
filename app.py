@@ -115,28 +115,34 @@ def admin():
     return render_template('admin.html', users=User.query.all())
 
 # --- دالة الذكاء الاصطناعي الذكية (نظام الانتقال الاحتياطي) ---
+# --- النظام الذكي والآمن للمحاولات (بالأسماء المضمونة) ---
 def generate_with_fallback(contents):
-    # قائمة النماذج التي سيجربها النظام بالترتيب
+    # قائمة النماذج التي تدعم 1500 طلب يومياً ومستقرة تماماً
     models_to_try = [
-        'gemini-1.5-flash',  # الأسرع والأساسي
-        'gemini-1.5-pro',    # نموذج احترافي قوي كبديل أول
-        'gemini-1.0-pro',    # بديل ثاني
-        'gemini-3.8-flash'   # بديل أخير
+        'gemini-1.5-flash-latest',  # الأسرع والحديث (تم إضافة latest لتجنب 404)
+        'gemini-pro'                # دبابة النصوص الكلاسيكية (مستقر جداً ولا ينهار أبداً)
     ]
     
     last_error = ""
+    
     for model_name in models_to_try:
         try:
             model = genai.GenerativeModel(model_name)
             response = model.generate_content(contents)
             return response.text.strip()
+            
         except Exception as e:
             last_error = str(e)
-            # إذا فشل هذا النموذج (بسبب ضغط، أو نفاد الحد)، استمر وجرب النموذج الذي يليه
+            
+            # إذا كان الخطأ هو 429 (نفاد الرصيد النهائي للمفتاح)، نوقف المحاولات فوراً
+            if "429" in last_error:
+                raise Exception("عفواً، لقد استنفدت رصيد الطلبات اليومي (1500 طلب). جرب استخدام مفتاح API جديد.")
+            
+            # إذا فشل النموذج الأول لأي سبب آخر (مثل 404 أو ضغط مؤقت)، استمر للنموذج الذي يليه
             continue
             
-    # إذا استنفدنا كل النماذج وفشلت جميعها
-    raise Exception(f"عذراً، جميع خوادم الذكاء الاصطناعي مشغولة حالياً. (آخر خطأ: {last_error})")
+    # إذا فشلت كل النماذج المضمونة
+    raise Exception(f"الخوادم تواجه مشكلة مؤقتة. آخر خطأ: {last_error}")
 
 
 # --- مسار المعالجة الذكية ---
