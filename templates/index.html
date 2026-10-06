@@ -8,7 +8,6 @@
     
     .input-section { margin-bottom: 20px; }
     textarea { width: 100%; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255,255,255,0.2); color: white; padding: 20px; border-radius: 15px; font-family: inherit; font-size: 1rem; min-height: 150px; box-sizing: border-box; }
-    .file-input-wrapper { margin-top: 15px; padding: 15px; background: rgba(0,0,0,0.2); border-radius: 10px; border: 1px dashed rgba(255,255,255,0.2); }
     
     .btn-main { width: 100%; background: linear-gradient(to right, var(--primary), #ec4899); border: none; padding: 16px; color: white; font-size: 1.2rem; font-weight: 700; border-radius: 12px; cursor: pointer; margin-top: 15px; font-family: inherit;}
     .result-section { display: none; margin-top: 30px; animation: fadeIn 0.5s; }
@@ -33,15 +32,11 @@
 </div>
 
 <div class="input-section">
-    <textarea id="userInput" placeholder="الصق النص أو بيانات المنتج هنا..."></textarea>
-    <div class="file-input-wrapper">
-        <label style="color: #cbd5e1; font-weight: bold; display: block; margin-bottom: 8px;">إضافة صورة للمنتج (اختياري - لاستخراج المكونات ودمجها):</label>
-        <input type="file" id="imageInput" accept="image/*" style="color: white;">
-    </div>
+    <textarea id="userInput" placeholder="الصق النص أو البيانات العشوائية للمنتج هنا ليتم معالجتها..."></textarea>
 </div>
 
 <button id="processBtn" class="btn-main" onclick="processData()">بدء المعالجة 🚀</button>
-<div id="loadingIndicator">جاري المعالجة واستخراج المكونات... يرجى الانتظار</div>
+<div id="loadingIndicator">جاري المعالجة... يرجى الانتظار</div>
 
 <div class="result-section" id="resultSection">
     <textarea id="aiResult" rows="14" readonly></textarea>
@@ -55,21 +50,19 @@
     async function processData() {
         const text = document.getElementById('userInput').value;
         const mode = document.querySelector('input[name="processing_mode"]:checked').value;
-        const imageFile = document.getElementById('imageInput').files[0];
         
         const processBtn = document.getElementById('processBtn');
         const loading = document.getElementById('loadingIndicator');
         const resultSection = document.getElementById('resultSection');
         const aiResult = document.getElementById('aiResult');
 
-        if (!text.trim() && !imageFile) return alert('يرجى إدخال نص أو إرفاق صورة.');
+        if (!text.trim()) return alert('يرجى إدخال النص أولاً للتتم معالجته.');
         
         processBtn.disabled = true; loading.style.display = 'block'; resultSection.style.display = 'none';
         
         const formData = new FormData();
         formData.append('text', text);
         formData.append('mode', mode);
-        if (imageFile) formData.append('image', imageFile);
 
         try {
             const response = await fetch('/process', { method: 'POST', body: formData });
@@ -93,18 +86,14 @@
         const fullText = document.getElementById('aiResult').value.trim();
         if (!fullText) return;
         
-        // فصل السطر الأول ليكون العنوان، والباقي هو الوصف
         const lines = fullText.split('\n');
         const productName = lines[0].replace(/^- /g, '').trim(); 
         const productDesc = lines.slice(1).join('\n').trim();
         
-        // الحل: حفظ البيانات في الذاكرة المؤقتة للمتصفح بدلاً من الرابط
         sessionStorage.setItem('archive_name', productName);
         sessionStorage.setItem('archive_desc', productDesc);
         
-        // الانتقال لصفحة الأرشيف برابط نظيف وقصير جداً
         window.location.href = '/archive';
-    
     }
 </script>
 {% endblock %}
