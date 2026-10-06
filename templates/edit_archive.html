@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+    .table-container { overflow-x: auto; margin-top: 20px; }
+    table { width: 100%; border-collapse: collapse; min-width: 700px; }
+    th, td { padding: 15px; border: 1px solid rgba(255,255,255,0.1); text-align: right; }
+    th { background: rgba(255,255,255,0.05); color: #818cf8; font-weight: bold; }
+    tr:hover { background: rgba(255,255,255,0.02); }
+    .thumb-img { width: 60px; height: 60px; object-fit: cover; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2); }
+    .action-btns { display: flex; gap: 10px; justify-content: flex-start; }
+    .msg-status { background: rgba(16, 185, 129, 0.2); border: 1px solid #10b981; color: #10b981; padding: 15px; border-radius: 8px; margin-bottom: 20px; text-align: center; font-weight: bold;}
+    .msg-error { background: rgba(239, 68, 68, 0.2); border: 1px solid #ef4444; color: #fca5a5; padding: 10px; border-radius: 8px; text-align: center; margin-bottom: 20px;}
+</style>
+
+<h1 style="color: #818cf8; text-align: center; margin-bottom: 30px;">إدارة وتحرير الأرشيف</h1>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+        {% for category, message in messages %}
+            <div class="{{ 'msg-status' if category == 'success' else 'msg-error' }}">{{ message }}</div>
+        {% endfor %}
+    {% endif %}
+{% endwith %}
+
+<div class="table-container">
+    <table>
+        <thead>
+            <tr>
+                <th>الصورة</th>
+                <th>كود المنتج</th>
+                <th>اسم المنتج</th>
+                <th>السعر</th>
+                <th>الإجراءات</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for product in products %}
+            <tr>
+                <td>
+                    {% if product.image_url %}
+                        <img src="{{ product.image_url }}" class="thumb-img" loading="lazy">
+                    {% else %}
+                        <div class="thumb-img" style="background: #334155; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; color: #cbd5e1;">بدون صورة</div>
+                    {% endif %}
+                </td>
+                <td style="color: #3b82f6; font-weight: bold;">{{ product.code }}</td>
+                <td>{{ product.name }}</td>
+                <td style="color: #10b981;">{{ product.price or '-' }}</td>
+                <td>
+                    <div class="action-btns">
+                        <a href="{{ url_for('edit_product', id=product.id) }}" class="btn btn-blue" style="text-decoration: none; padding: 8px 15px;">تعديل ✏️</a>
+                        
+                        <form action="{{ url_for('delete_product', id=product.id) }}" method="POST" onsubmit="return confirm('هل أنت متأكد من حذف هذا المنتج بشكل نهائي؟');" style="margin: 0;">
+                            <button type="submit" class="btn btn-red" style="padding: 8px 15px;">حذف 🗑️</button>
+                        </form>
+                    </div>
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="5" style="text-align: center; color: #cbd5e1; padding: 30px;">الأرشيف فارغ حالياً.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+    .form-group { margin-bottom: 20px; }
+    .form-group label { display: block; margin-bottom: 8px; color: #818cf8; font-weight: bold; }
+    .form-group input, .form-group textarea { width: 100%; padding: 12px; background: rgba(15,23,42,0.6); border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; color: white; font-family: inherit; box-sizing: border-box;}
+    .current-img-box { margin-top: 10px; padding: 15px; background: rgba(255,255,255,0.05); border-radius: 8px; display: inline-block; }
+    .current-img-box img { max-width: 150px; border-radius: 8px; display: block; margin-bottom: 10px; }
+</style>
+
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px;">
+    <h1 style="color: #818cf8; margin: 0;">تعديل المنتج: {{ product.code }}</h1>
+    <a href="{{ url_for('edit_archive') }}" class="btn btn-red" style="text-decoration: none;">رجوع للقائمة 🔙</a>
+</div>
+
+<form method="POST" enctype="multipart/form-data">
+    <div class="form-group">
+        <label>اسم المنتج</label>
+        <input type="text" name="name" value="{{ product.name }}" required>
+    </div>
+    <div class="form-group">
+        <label>وصف وتفاصيل المنتج</label>
+        <textarea name="description" rows="8">{{ product.description }}</textarea>
+    </div>
+    <div class="form-group">
+        <label>السعر</label>
+        <input type="text" name="price" value="{{ product.price or '' }}">
+    </div>
+    <div class="form-group">
+        <label>تحديث صورة المنتج (اختياري - اتركه فارغاً للاحتفاظ بالصورة الحالية)</label>
+        <input type="file" name="image" accept="image/*">
+        
+        {% if product.image_url %}
+        <div class="current-img-box">
+            <span style="display: block; margin-bottom: 5px; color: #cbd5e1; font-size: 0.9rem;">الصورة الحالية:</span>
+            <img src="{{ product.image_url }}" alt="صورة المنتج">
+        </div>
+        {% endif %}
+    </div>
+    <button type="submit" class="btn btn-green" style="width: 100%; padding: 15px; font-size: 1.1rem; background: #10b981; border: none; color: white; border-radius: 8px; cursor: pointer; font-weight: bold;">حفظ التعديلات 💾</button>
+</form>
+{% endblock %}

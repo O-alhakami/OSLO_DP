@@ -262,5 +262,53 @@ def search_archive():
             
     return render_template('search.html', results=results)
 
+# --- مسارات تحرير وإدارة الأرشيف ---
+
+@app.route('/edit_archive')
+@login_required
+def edit_archive():
+    # جلب جميع المنتجات من الأحدث للأقدم
+    products = Product.query.order_by(Product.id.desc()).all()
+    return render_template('edit_archive.html', products=products)
+
+@app.route('/delete_product/<int:id>', methods=['POST'])
+@login_required
+def delete_product(id):
+    product = Product.query.get_or_404(id)
+    try:
+        db.session.delete(product)
+        db.session.commit()
+        flash('تم حذف المنتج من الأرشيف بنجاح.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'حدث خطأ أثناء الحذف: {str(e)}', 'error')
+    return redirect(url_for('edit_archive'))
+
+@app.route('/edit_product/<int:id>', methods=['GET', 'POST'])
+@login_required
+def edit_product(id):
+    product = Product.query.get_or_404(id)
+    if request.method == 'POST':
+        try:
+            product.name = request.form.get('name')
+            product.description = request.form.get('description')
+            product.price = request.form.get('price')
+            
+            image_file = request.files.get('image')
+            # إذا قام برفع صورة جديدة، نرفعها لـ ImgBB ونحدث الرابط
+            if image_file and image_file.filename != '':
+                new_image_url = upload_image_to_imgbb(image_file)
+                if new_image_url:
+                    product.image_url = new_image_url
+                    
+            db.session.commit()
+            flash('تم تحديث بيانات المنتج بنجاح!', 'success')
+            return redirect(url_for('edit_archive'))
+        except Exception as e:
+            db.session.rollback()
+            flash(f'حدث خطأ أثناء التحديث: {str(e)}', 'error')
+            
+    return render_template('edit_product.html', product=product)
+
 if __name__ == '__main__':
     app.run(debug=True)
