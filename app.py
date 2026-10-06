@@ -1,12 +1,12 @@
 import os
 import secrets
 import requests
-import io
+import base64
 from flask import Flask, render_template, request, jsonify, redirect, url_for, flash
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
-import google.generativeai as genai
+from openai import OpenAI
 from dotenv import load_dotenv
 from sqlalchemy import or_
 
@@ -25,7 +25,8 @@ login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
 
-genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
+# --- مفاتيح API ---
+OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY")
 IMGBB_API_KEY = os.environ.get("IMGBB_API_KEY")
 
 # --- نماذج قاعدة البيانات ---
@@ -37,7 +38,7 @@ class User(UserMixin, db.Model):
     is_admin = db.Column(db.Boolean, default=False)
 
 class Product(db.Model):
-    __tablename__ = 'products_v2' # هذا السطر سيجبر النظام على إنشاء جدول جديد محدث
+    __tablename__ = 'products_v2'
     id = db.Column(db.Integer, primary_key=True)
     code = db.Column(db.String(20), unique=True, nullable=False)
     name = db.Column(db.String(200), nullable=False)
@@ -52,7 +53,7 @@ def load_user(user_id):
 with app.app_context():
     db.create_all()
 
-# --- دالة رفع الصور ---
+# --- دالة رفع الصور لـ ImgBB ---
 def upload_image_to_imgbb(image_file):
     url = "https://api.imgbb.com/1/upload"
     payload = {"key": IMGBB_API_KEY}
@@ -61,6 +62,55 @@ def upload_image_to_imgbb(image_file):
     if response.status_code == 200:
         return response.json()['data']['url']
     return None
+
+# --- محرك OpenRouter الذكي للمحاولات المتعددة والنماذج المجانية ---
+def generate_with_openrouter(prompt_text, image_bytes=None, mimetype=None):
+    if not OPENROUTER_API_KEY:
+        raise Exception("مفتاح OPENROUTER_API_KEY مفقود من الإعدادات.")
+        
+    # تهيئة عميل OpenAI ليعمل مع سيرفرات OpenRouter
+    client = OpenAI(
+        base_url="https://openrouter.ai/api/v1",
+        api_key=OPENROUTER_API_KEY,
+    )
+    
+    # تحديد النماذج والمحتوى بناءً على وجود صورة أو لا
+    if image_bytes:
+        # نماذج مجانية تدعم الرؤية (Vision)
+        models = [
+            "qwen/qwen-2-vl-7b-instruct:free",
+            "google/gemini-1.5-flash-exp:free"
+        ]
+        base64_image = base64.b64encode(image_bytes).decode('utf-8')
+        content = [
+            {"type": "text", "text": prompt_text},
+            {"type": "image_url", "image_url": {"url": f"data:{mimetype};base64,{base64_image}"}}
+        ]
+    else:
+        # نماذج مجانية قوية جداً للنصوص (Meta Llama و Gemma)
+        models = [
+            "meta-llama/llama-3.1-8b-instruct:free",
+            "google/gemma-2-9b-it:free"
+        ]
+        content = prompt_text
+
+    last_error = ""
+    for model_name in models:
+        try:
+            response = client.chat.completions.create(
+                model=model_name,
+                messages=[{"role": "user", "content": content}],
+                headers={
+                    "HTTP-Referer": "https://oslo-dp.onrender.com",
+                    "X-Title": "OSLO DP"
+                }
+            )
+            return response.choices[0].message.content.strip()
+        except Exception as e:
+            last_error = str(e)
+            continue # حاول مع النموذج المجاني التالي
+            
+    raise Exception(f"فشلت المعالجة من OpenRouter. (آخر خطأ: {last_error})")
 
 # --- مسارات المصادقة والإدارة ---
 @app.route('/register', methods=['GET', 'POST'])
@@ -114,39 +164,7 @@ def admin():
             db.session.commit()
     return render_template('admin.html', users=User.query.all())
 
-# --- دالة الذكاء الاصطناعي الذكية (نظام الانتقال الاحتياطي) ---
-# --- النظام الذكي والآمن للمحاولات (بالأسماء المضمونة) ---
-# --- النظام الذكي والآمن للمحاولات (بالأسماء الرسمية المعتمدة حالياً) ---
-def generate_with_fallback(contents):
-    # استخدام الأسماء الرسمية المباشرة بدون أي إضافات قديمة
-    models_to_try = [
-        'gemini-1.5-flash',  # النموذج الأساسي السريع (1500 طلب يومياً)
-        'gemini-1.5-pro'     # النموذج الاحتياطي المتقدم
-    ]
-    
-    last_error = ""
-    
-    for model_name in models_to_try:
-        try:
-            model = genai.GenerativeModel(model_name)
-            response = model.generate_content(contents)
-            return response.text.strip()
-            
-        except Exception as e:
-            last_error = str(e)
-            
-            # إيقاف المحاولات فوراً إذا نفد الرصيد اليومي
-            if "429" in last_error:
-                raise Exception("عفواً، لقد استنفدت رصيد الطلبات اليومي (1500 طلب). جرب استخدام مفتاح API جديد.")
-            
-            # الاستمرار للنموذج التالي إذا كان الخطأ مختلفاً
-            continue
-            
-    # إذا فشلت النماذج المتاحة
-    raise Exception(f"خطأ في الاتصال بخوادم الذكاء الاصطناعي. آخر خطأ: {last_error}")
-
-
-# --- مسار المعالجة الذكية ---
+# --- مسار المعالجة النصية الذكية ---
 @app.route('/')
 @login_required
 def index():
@@ -158,14 +176,13 @@ def process_text():
     text = request.form.get('text', '')
     mode = request.form.get('mode', 'product')
     
-    # تم إزالة تعليمات الصورة من أوامر الذكاء الاصطناعي لتخفيف الاستهلاك
     system_prompt = """
     أنت صانع محتوى احترافي. التزم بهذه القواعد الصارمة حرفياً ولا تخالفها أبداً:
-    1. اكتب النص المطلوب مباشرة بدون أي مقدمات أو ترحيب (لا تكتب "إليك الوصف" وما شابه).
+    1. اكتب النص المطلوب مباشرة بدون أي مقدمات أو ترحيب.
     2. لا تذكر أو تخمن أي سعر نهائياً.
     3. يمنع منعاً باتاً استخدام علامة النجمة (*) أو المربعات في التنسيق. استخدم فقط علامة الشرطة (-) لعمل قائمة نقطية.
     4. يجب أن يكون السطر الأول من الإجابة هو اسم المنتج فقط.
-    5. في نهاية النص تماماً، اترك سطراً فارغاً ثم اكتب 5 هاشتاجات قوية ومناسبة لانستجرام وتيك توك تتعلق بالمنتج.
+    5. في نهاية النص، اكتب 5 هاشتاجات قوية ومناسبة لانستجرام وتيك توك تتعلق بالمنتج.
     """
     
     prompts = {
@@ -174,16 +191,16 @@ def process_text():
         "marketing": "في السطر الأول اكتب اسم المنتج. ثم اكتب منشوراً تسويقياً جذاباً مع عبارات تحفيزية."
     }
     
-    content_to_send = [system_prompt + "\nالمطلوب: " + prompts.get(mode) + f"\n\nالنص المدخل:\n{text}"]
+    full_prompt = system_prompt + "\n\nالمطلوب:\n" + prompts.get(mode) + f"\n\nالنص المدخل:\n{text}"
     
     try:
-        # نستخدم دالة المحاولات المتعددة التي برمجناها سابقاً
-        result_text = generate_with_fallback(content_to_send)
+        # معالجة النص باستخدام OpenRouter
+        result_text = generate_with_openrouter(full_prompt)
         return jsonify({"result": result_text})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-# --- مسارات الأرشيف والبحث ---
+# --- مسارات الأرشيف ---
 @app.route('/archive', methods=['GET', 'POST'])
 @login_required
 def archive():
@@ -205,11 +222,10 @@ def archive():
             db.session.commit()
             flash(f'تمت أرشفة المنتج بنجاح! كود المنتج: {unique_code}', 'success')
         except Exception as e:
-            db.session.rollback() # التراجع عن العملية لتجنب تعليق قاعدة البيانات
+            db.session.rollback()
             flash(f'فشلت عملية الأرشفة: {str(e)}', 'error')
             
         return redirect(url_for('archive'))
-        
     return render_template('archive.html')
 
 @app.route('/search', methods=['GET', 'POST'])
@@ -223,7 +239,6 @@ def search_archive():
             
             search_text = search_text.strip() if search_text else ""
             
-            # البحث النصي (اسم، وصف، أو كود)
             if search_text:
                 keywords = search_text.split()
                 conditions = []
@@ -232,49 +247,42 @@ def search_archive():
                         conditions.append(Product.name.ilike(f"%{kw}%"))
                         conditions.append(Product.description.ilike(f"%{kw}%"))
                         conditions.append(Product.code.ilike(f"%{kw}%"))
-                
                 if conditions:
                     results = list(set(Product.query.filter(or_(*conditions)).all()))
                     
-            # البحث بالصورة (تفكيك المكونات والمطابقة)
             elif search_image and search_image.filename != '':
                 image_bytes = search_image.read()
-                image_part = {"mime_type": search_image.mimetype, "data": image_bytes}
+                mime_type = search_image.mimetype
                 
                 prompt = "استخرج جميع أسماء المنتجات والأشياء والمكونات الواضحة في هذه الصورة. اكتبها ككلمات مفردة فقط مفصولة بمسافة فارغة بدون أي نصوص أو رموز أخرى."
                 
-                # استخدام الدالة الذكية
-                result_text = generate_with_fallback([prompt, image_part])
-                
+                # استخدام OpenRouter مع الصورة (نماذج الرؤية المجانية)
+                result_text = generate_with_openrouter(prompt, image_bytes, mime_type)
                 extracted_keywords = result_text.split()
                 
                 if extracted_keywords:
                     conditions = []
                     for kw in extracted_keywords:
-                        if len(kw) > 2: # تجاهل الحروف والكلمات القصيرة جداً
+                        if len(kw) > 2:
                             conditions.append(Product.name.ilike(f"%{kw}%"))
                             conditions.append(Product.description.ilike(f"%{kw}%"))
-                            
                     if conditions:
                         results = list(set(Product.query.filter(or_(*conditions)).all()))
                         
                 kw_string = "، ".join(extracted_keywords)
                 if results:
-                    flash(f'تم تحليل مكونات الصورة بنجاح: ({kw_string})', 'success')
+                    flash(f'تم تحليل الصورة (المكونات: {kw_string})', 'success')
                 else:
-                    flash(f'تعرف الذكاء الاصطناعي على: ({kw_string}) ولكن لم يعثر على تطابق في الأرشيف.', 'error')
+                    flash(f'لا يوجد تطابق في الأرشيف (تم التعرف على: {kw_string})', 'error')
                 
         except Exception as e:
-            flash(f'حدث خطأ أثناء المعالجة: {str(e)}', 'error')
+            flash(f'حدث خطأ: {str(e)}', 'error')
             
     return render_template('search.html', results=results)
-
-# --- مسارات تحرير وإدارة الأرشيف ---
 
 @app.route('/edit_archive')
 @login_required
 def edit_archive():
-    # جلب جميع المنتجات من الأحدث للأقدم
     products = Product.query.order_by(Product.id.desc()).all()
     return render_template('edit_archive.html', products=products)
 
@@ -285,10 +293,10 @@ def delete_product(id):
     try:
         db.session.delete(product)
         db.session.commit()
-        flash('تم حذف المنتج من الأرشيف بنجاح.', 'success')
+        flash('تم حذف المنتج بنجاح.', 'success')
     except Exception as e:
         db.session.rollback()
-        flash(f'حدث خطأ أثناء الحذف: {str(e)}', 'error')
+        flash(f'خطأ أثناء الحذف: {str(e)}', 'error')
     return redirect(url_for('edit_archive'))
 
 @app.route('/edit_product/<int:id>', methods=['GET', 'POST'])
@@ -302,7 +310,6 @@ def edit_product(id):
             product.price = request.form.get('price')
             
             image_file = request.files.get('image')
-            # إذا قام برفع صورة جديدة، نرفعها لـ ImgBB ونحدث الرابط
             if image_file and image_file.filename != '':
                 new_image_url = upload_image_to_imgbb(image_file)
                 if new_image_url:
@@ -313,7 +320,7 @@ def edit_product(id):
             return redirect(url_for('edit_archive'))
         except Exception as e:
             db.session.rollback()
-            flash(f'حدث خطأ أثناء التحديث: {str(e)}', 'error')
+            flash(f'خطأ أثناء التحديث: {str(e)}', 'error')
             
     return render_template('edit_product.html', product=product)
 
